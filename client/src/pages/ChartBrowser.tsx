@@ -322,9 +322,9 @@ export default function ChartBrowser() {
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-bold text-white">Chart Browser</h1>
+        <h1 className="text-2xl font-bold text-white">Search</h1>
         <p className="text-zinc-500 text-sm mt-1">
-          Top albums by Last.fm tag · hover a card and click <span className="text-zinc-400">+</span> to add to a list
+          Last.fm charts by tag · hover a card and click <span className="text-zinc-400">+</span> to add to a list
         </p>
       </div>
 

@@ -18,6 +18,8 @@ export interface List {
   created_at: string;
   updated_at: string;
   album_count?: number;
+  /** First 5 album cover image URLs (list order), null entries omitted on server when possible */
+  thumbnail_urls?: (string | null)[] | null;
   albums?: ListAlbum[];
 }
 

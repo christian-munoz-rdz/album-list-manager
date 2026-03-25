@@ -16,11 +16,29 @@ function generateSlug(title: string): string {
   return `${base}-${suffix}`;
 }
 
-// GET /api/lists - Get all lists for current user with album counts
+// GET /api/lists - Get all lists for current user with album counts + first 5 cover URLs
 router.get('/', requireUser, async (req: Request, res: Response) => {
   try {
     const result = await query(
-      `SELECT l.*, COUNT(la.id)::int AS album_count
+      `SELECT
+         l.*,
+         COUNT(la.id)::int AS album_count,
+         (
+           SELECT COALESCE(json_agg(x.url ORDER BY x.pos), '[]'::json)
+           FROM (
+             SELECT
+               la2.position AS pos,
+               COALESCE(
+                 NULLIF(btrim(ac.image_url), ''),
+                 ac.images->0->>'url'
+               ) AS url
+             FROM list_albums la2
+             INNER JOIN albums_cache ac ON ac.album_id = la2.album_id
+             WHERE la2.list_id = l.id
+             ORDER BY la2.position ASC
+             LIMIT 5
+           ) x
+         ) AS thumbnail_urls
        FROM lists l
        LEFT JOIN list_albums la ON la.list_id = l.id
        WHERE l.user_id = $1
