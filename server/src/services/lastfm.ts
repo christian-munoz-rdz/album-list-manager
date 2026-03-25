@@ -113,13 +113,19 @@ export interface LastFmAlbum {
   url: string | null;
 }
 
+/** Last.fm often returns a single object instead of a one-element array. */
+function asArray<T>(x: T | T[] | undefined | null): T[] {
+  if (x == null) return [];
+  return Array.isArray(x) ? x : [x];
+}
+
 interface LastFmApiAlbum {
   tags?: {
-    tag?: Array<{ name: string; url: string }>;
+    tag?: Array<{ name: string; url: string }> | { name: string; url: string };
   };
   listeners?: string;
   playcount?: string;
-  image?: Array<{ '#text': string; size: string }>;
+  image?: Array<{ '#text': string; size: string }> | { '#text': string; size: string };
   url?: string;
 }
 
@@ -136,12 +142,12 @@ function parseLastFmAlbumPayload(data: LastFmApiResponse): LastFmAlbum | null {
 
   const albumData = data.album;
 
-  const tags: LastFmTag[] = (albumData.tags?.tag ?? []).map((tag) => ({
+  const tags: LastFmTag[] = asArray(albumData.tags?.tag).map((tag) => ({
     name: tag.name,
     url: tag.url,
   }));
 
-  const images = albumData.image ?? [];
+  const images = asArray(albumData.image);
   const preferredSizes = ['extralarge', 'large', 'medium', 'small'];
   let imageUrl: string | null = null;
   for (const size of preferredSizes) {
