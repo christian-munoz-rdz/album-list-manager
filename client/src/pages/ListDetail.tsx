@@ -18,6 +18,7 @@ import {
 import { getList, updateList, deleteList, reorderAlbums } from '../api/client';
 import AlbumCard from '../components/AlbumCard';
 import AlbumSearch from '../components/AlbumSearch';
+import ImportModal from '../components/ImportModal';
 import type { ListAlbum } from '../types';
 
 export default function ListDetail() {
@@ -31,6 +32,7 @@ export default function ListDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [localAlbums, setLocalAlbums] = useState<ListAlbum[] | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const { data: list, isLoading, isError } = useQuery({
     queryKey: ['list', id],
@@ -244,6 +246,17 @@ export default function ListDetail() {
                 </button>
               )}
 
+              {/* Import */}
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors"
+              >
+                <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                Import
+              </button>
+
               {/* Delete */}
               {!showDeleteConfirm ? (
                 <button
@@ -306,6 +319,16 @@ export default function ListDetail() {
           <p className="text-zinc-400 font-medium">No albums yet</p>
           <p className="text-zinc-600 text-sm mt-1">Search above to add your first album.</p>
         </div>
+      )}
+
+      {showImportModal && (
+        <ImportModal
+          defaultListId={id}
+          onClose={() => {
+            setShowImportModal(false);
+            queryClient.invalidateQueries({ queryKey: ['list', id] });
+          }}
+        />
       )}
     </div>
   );

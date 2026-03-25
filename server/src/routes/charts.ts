@@ -151,6 +151,29 @@ router.post('/add-lastfm', requireUser, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'List not found' });
     }
 
+    // If Last.fm metadata wasn't supplied (e.g. from a file import), fetch it now
+    let resolvedListeners: number | null = lastfm_listeners ?? null;
+    let resolvedPlaycount: number | null = lastfm_playcount ?? null;
+    let resolvedUrl: string | null = lastfm_url ?? null;
+    let resolvedImageUrl: string | null = image_url ?? null;
+
+    const needsLfm = !resolvedListeners && !resolvedPlaycount;
+    if (needsLfm) {
+      try {
+        const lfmInfo = await getAlbumInfo(artist_name, album_name);
+        if (lfmInfo) {
+          resolvedListeners = lfmInfo.listeners;
+          resolvedPlaycount = lfmInfo.playcount;
+          // Build a Last.fm URL from the first tag's url domain if we don't have one
+          if (!resolvedUrl) {
+            resolvedUrl = `https://www.last.fm/music/${encodeURIComponent(artist_name)}/${encodeURIComponent(album_name)}`;
+          }
+        }
+      } catch {
+        // Non-fatal: store without Last.fm data if fetch fails
+      }
+    }
+
     // Upsert into albums_cache with Last.fm data
     await query(
       `INSERT INTO albums_cache (
@@ -167,11 +190,11 @@ router.post('/add-lastfm', requireUser, async (req: Request, res: Response) => {
         syntheticId,
         artist_name,
         album_name,
-        image_url ?? null,
-        image_url ? JSON.stringify([{ url: image_url, width: 300, height: 300 }]) : JSON.stringify([]),
-        lastfm_listeners ?? null,
-        lastfm_playcount ?? null,
-        JSON.stringify({ lastfm: lastfm_url ?? null }),
+        resolvedImageUrl,
+        resolvedImageUrl ? JSON.stringify([{ url: resolvedImageUrl, width: 300, height: 300 }]) : JSON.stringify([]),
+        resolvedListeners,
+        resolvedPlaycount,
+        JSON.stringify({ lastfm: resolvedUrl }),
       ]
     );
 

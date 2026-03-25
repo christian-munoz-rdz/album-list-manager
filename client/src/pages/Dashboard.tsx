@@ -4,10 +4,12 @@ import { getLists } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import ListCard from '../components/ListCard';
 import CreateListModal from '../components/CreateListModal';
+import ImportModal from '../components/ImportModal';
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const { data: lists, isLoading, isError } = useQuery({
     queryKey: ['lists'],
@@ -31,15 +33,26 @@ export default function Dashboard() {
             </p>
           )}
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 bg-spotify-green hover:bg-green-400 text-black font-semibold px-4 py-2.5 rounded-full text-sm transition-colors"
-        >
-          <svg viewBox="0 0 20 20" className="w-4 h-4 fill-current" aria-hidden="true">
-            <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-          </svg>
-          New List
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium px-4 py-2.5 rounded-full text-sm transition-colors"
+          >
+            <svg viewBox="0 0 20 20" className="w-4 h-4 fill-current" aria-hidden="true">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+            Import
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 bg-spotify-green hover:bg-green-400 text-black font-semibold px-4 py-2.5 rounded-full text-sm transition-colors"
+          >
+            <svg viewBox="0 0 20 20" className="w-4 h-4 fill-current" aria-hidden="true">
+              <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            New List
+          </button>
+        </div>
       </div>
 
       {/* Stats bar */}
@@ -102,8 +115,9 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Create modal */}
+      {/* Modals */}
       {showCreateModal && <CreateListModal onClose={() => setShowCreateModal(false)} />}
+      {showImportModal && <ImportModal onClose={() => setShowImportModal(false)} />}
     </div>
   );
 }
