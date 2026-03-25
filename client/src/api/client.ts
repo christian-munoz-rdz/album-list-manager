@@ -34,3 +34,22 @@ export const getAlbumDetails = (spotify_album_id: string) =>
 export const getChartAlbums = (tag: string, limit = 50, page = 1) =>
   api.get<ChartResponse>(`/charts?tag=${encodeURIComponent(tag)}&limit=${limit}&page=${page}`)
     .then(r => r.data);
+
+export const resolveChartAlbum = (artist: string, album: string) =>
+  api.post<{ spotify_album_id: string; album_name: string; artist_name: string; release_date: string; images: Array<{ url: string; width: number; height: number }>; external_urls: { spotify: string } }>(
+    '/charts/resolve', { artist, album }
+  ).then(r => r.data);
+
+export const addChartAlbum = (
+  list_id: string,
+  artist_name: string,
+  album_name: string,
+  lastfm_url: string,
+  image_url: string | null,
+  lastfm_listeners: number,
+  lastfm_playcount: number,
+) =>
+  api.post<{ spotify_album_id: string; list_id: string; position: number }>(
+    '/charts/add-lastfm',
+    { list_id, artist_name, album_name, lastfm_url, image_url, lastfm_listeners, lastfm_playcount }
+  ).then(r => r.data);

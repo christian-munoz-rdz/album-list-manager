@@ -1,7 +1,9 @@
 import axios from 'axios';
 import { Router, Request, Response } from 'express';
+import { query } from '../db';
 import { requireUser } from '../middleware/auth';
 import { getAlbumInfo } from '../services/lastfm';
+import { getClientAccessToken, searchAlbums } from '../services/spotify';
 
 const router = Router();
 
@@ -125,6 +127,174 @@ router.get('/', requireUser, async (req: Request, res: Response) => {
     console.error('Charts error:', err);
     res.status(500).json({ error: 'Failed to fetch chart data' });
   }
+});
+
+// POST /api/charts/add-lastfm - Add a Last.fm chart album directly to a list using a synthetic ID
+router.post('/add-lastfm', requireUser, async (req: Request, res: Response) => {
+  const { list_id, artist_name, album_name, lastfm_url, image_url, lastfm_listeners, lastfm_playcount } = req.body;
+
+  if (!list_id || !artist_name || !album_name) {
+    return res.status(400).json({ error: 'list_id, artist_name and album_name are required' });
+  }
+
+  // Synthetic primary key: "lastfm:" + slugified artist + ":" + slugified album
+  const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const syntheticId = `lastfm:${slug(artist_name)}:${slug(album_name)}`;
+
+  try {
+    // Verify the list belongs to this user
+    const listResult = await query(
+      'SELECT id FROM lists WHERE id = $1 AND user_id = $2',
+      [list_id, req.userId]
+    );
+    if (listResult.rows.length === 0) {
+      return res.status(404).json({ error: 'List not found' });
+    }
+
+    // Upsert into albums_cache with Last.fm data
+    await query(
+      `INSERT INTO albums_cache (
+        spotify_album_id, artist_name, album_name,
+        image_url, images,
+        lastfm_listeners, lastfm_playcount,
+        external_urls, genres, lastfm_tags, top_tracks
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'[]','[]','[]')
+      ON CONFLICT (spotify_album_id) DO UPDATE SET
+        lastfm_listeners = EXCLUDED.lastfm_listeners,
+        lastfm_playcount = EXCLUDED.lastfm_playcount,
+        last_fetched = NOW()`,
+      [
+        syntheticId,
+        artist_name,
+        album_name,
+        image_url ?? null,
+        image_url ? JSON.stringify([{ url: image_url, width: 300, height: 300 }]) : JSON.stringify([]),
+        lastfm_listeners ?? null,
+        lastfm_playcount ?? null,
+        JSON.stringify({ lastfm: lastfm_url ?? null }),
+      ]
+    );
+
+    // Get next position
+    const posResult = await query(
+      'SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM list_albums WHERE list_id = $1',
+      [list_id]
+    );
+    const position = posResult.rows[0].next_pos;
+
+    // Add to list
+    const insertResult = await query(
+      `INSERT INTO list_albums (list_id, spotify_album_id, position)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (list_id, spotify_album_id) DO NOTHING
+       RETURNING id`,
+      [list_id, syntheticId, position]
+    );
+
+    if (insertResult.rows.length === 0) {
+      return res.status(409).json({ error: 'Album already in this list' });
+    }
+
+    res.status(201).json({ spotify_album_id: syntheticId, list_id, position });
+  } catch (err) {
+    console.error('Chart add-lastfm error:', err);
+    res.status(500).json({ error: 'Failed to add album to list' });
+  }
+});
+
+// Track when we last hit a 429 so we can gate subsequent resolve calls
+let spotifyRateLimitUntil = 0;
+
+// POST /api/charts/resolve - Find a Spotify album ID for a Last.fm artist+album name
+router.post('/resolve', requireUser, async (req: Request, res: Response) => {
+  const { artist, album } = req.body;
+
+  if (!artist || !album || typeof artist !== 'string' || typeof album !== 'string') {
+    return res.status(400).json({ error: 'artist and album are required' });
+  }
+
+  // Fast-fail if we're still in a known rate-limit cooldown window
+  const now = Date.now();
+  if (now < spotifyRateLimitUntil) {
+    const waitSec = Math.ceil((spotifyRateLimitUntil - now) / 1000);
+    return res.status(429).json({
+      error: `Spotify is rate-limiting requests. Please wait ~${waitSec}s and try again.`,
+    });
+  }
+
+  const normalize = (s: string) =>
+    s.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+
+  // Retry up to 4 times on 429, honouring Spotify's Retry-After header
+  const MAX_RETRIES = 4;
+  let lastErr: unknown;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const token = await getClientAccessToken();
+      const results = await searchAlbums(`artist:${artist.trim()} album:${album.trim()}`, token);
+
+      if (!results || results.length === 0) {
+        return res.status(404).json({ error: 'Album not found on Spotify' });
+      }
+
+      const na = normalize(artist);
+      const nb = normalize(album);
+
+      const best =
+        results.find(
+          (sp) =>
+            normalize(sp.artists[0]?.name ?? '') === na &&
+            normalize(sp.name) === nb
+        ) ??
+        results.find((sp) => normalize(sp.name) === nb) ??
+        results[0];
+
+      return res.json({
+        spotify_album_id: best.id,
+        album_name: best.name,
+        artist_name: best.artists[0]?.name ?? artist,
+        release_date: best.release_date,
+        images: best.images,
+        external_urls: best.external_urls,
+      });
+    } catch (err) {
+      lastErr = err;
+      const axiosErr = err as { response?: { status?: number; headers?: Record<string, string> } };
+      if (axiosErr.response?.status !== 429) break; // only retry on rate limit
+
+      if (attempt < MAX_RETRIES - 1) {
+        // Retry-After can be a relative seconds value OR a Unix timestamp.
+        // If the value is > 3600 (1 hour), treat it as a Unix timestamp and
+        // compute the relative wait. Cap at 30s to avoid absurd delays.
+        const retryAfterRaw = parseInt(axiosErr.response?.headers?.['retry-after'] ?? '', 10);
+        let retryAfterMs = 2000 * Math.pow(2, attempt); // default: 2s, 4s, 8s
+        if (Number.isFinite(retryAfterRaw) && retryAfterRaw > 0) {
+          const relSec = retryAfterRaw > 3600
+            ? retryAfterRaw - Math.floor(Date.now() / 1000) // Unix ts → relative
+            : retryAfterRaw;                                 // already relative seconds
+          retryAfterMs = Math.min(30_000, Math.max(1000, relSec * 1000)) + 200;
+        }
+        const waitMs = retryAfterMs;
+        // Record the cooldown window so concurrent/subsequent requests fast-fail
+        spotifyRateLimitUntil = Date.now() + waitMs;
+        console.warn(`Chart resolve: 429 on attempt ${attempt + 1}, waiting ${waitMs}ms`);
+        await delay(waitMs);
+        spotifyRateLimitUntil = 0; // cleared after we've waited
+      }
+    }
+  }
+
+  const status = (lastErr as { response?: { status?: number } })?.response?.status;
+  if (status === 429) {
+    // Keep a 30s cooldown after exhausting retries
+    spotifyRateLimitUntil = Date.now() + 30_000;
+    console.warn('Chart resolve: Spotify rate limit hit after retries');
+    return res.status(429).json({ error: 'Spotify is rate-limiting requests. Please wait ~30s and try again.' });
+  }
+
+  console.error('Chart resolve error:', lastErr);
+  res.status(500).json({ error: 'Failed to resolve album on Spotify' });
 });
 
 export default router;
