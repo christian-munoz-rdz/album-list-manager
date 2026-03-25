@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { removeAlbum, updateNote } from '../api/client';
+import { removeAlbum, updateNote, refreshAlbumCover } from '../api/client';
 import type { ListAlbum } from '../types';
 import AlbumDetailModal from './AlbumDetailModal';
 
@@ -50,6 +50,13 @@ export default function AlbumCard({ album, listId, editable = false, sortable = 
     },
   });
 
+  const refreshCoverMutation = useMutation({
+    mutationFn: () => refreshAlbumCover(listId, album.spotify_album_id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['list', listId] });
+    },
+  });
+
   const handleNoteSave = () => {
     noteMutation.mutate(note);
   };
@@ -81,7 +88,29 @@ export default function AlbumCard({ album, listId, editable = false, sortable = 
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
           ) : (
-            <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-4xl text-zinc-700">♪</div>
+            <div className="relative w-full h-full bg-zinc-800 flex flex-col items-center justify-center text-4xl text-zinc-700">
+              <span aria-hidden="true">♪</span>
+              {editable && (
+                <>
+                  {refreshCoverMutation.isError && (
+                    <p className="absolute bottom-10 left-2 right-2 text-center text-[10px] text-red-400/90 leading-tight">
+                      Could not load cover. Try again.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      refreshCoverMutation.mutate();
+                    }}
+                    disabled={refreshCoverMutation.isPending}
+                    className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-zinc-950/90 text-spotify-green border border-spotify-green/40 hover:bg-spotify-green/10 disabled:opacity-50 transition-colors"
+                  >
+                    {refreshCoverMutation.isPending ? 'Loading…' : 'Retry cover'}
+                  </button>
+                </>
+              )}
+            </div>
           )}
 
           {/* Drag handle */}

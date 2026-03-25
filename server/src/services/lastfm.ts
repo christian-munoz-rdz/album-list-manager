@@ -2,6 +2,36 @@ import axios from 'axios';
 
 const LASTFM_BASE_URL = 'http://ws.audioscrobbler.com/2.0/';
 
+/** Strip non-ASCII suffixes (e.g. RYM native titles after Latin names). */
+export function stripNonAscii(s: string): string {
+  return s.replace(/[^\x00-\x7F]+/g, '').trim();
+}
+
+/**
+ * Normalize RYM/CSV artist strings for Last.fm (e.g. "Elucid &, Sebb" → "Elucid & Sebb").
+ */
+export function normalizeLastFmArtist(s: string): string {
+  let t = stripNonAscii(s);
+  t = t.replace(/&\s*,\s*/gi, '& ');
+  t = t.replace(/,\s*&/g, ' &');
+  t = t.replace(/\s+/g, ' ').trim();
+  if (!t.includes('&') && t.includes(',')) {
+    t = t
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .join(' & ');
+  }
+  return t.trim();
+}
+
+export function normalizeLastFmAlbumTitle(s: string): string {
+  let t = stripNonAscii(s);
+  t = t.replace(/\s+/g, ' ').trim();
+  t = t.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  return t;
+}
+
 export interface TagTopAlbum {
   artist: string;
   album: string;
@@ -99,10 +129,40 @@ interface LastFmApiResponse {
   message?: string;
 }
 
-export async function getAlbumInfo(
-  artist: string,
-  album: string
-): Promise<LastFmAlbum | null> {
+function parseLastFmAlbumPayload(data: LastFmApiResponse): LastFmAlbum | null {
+  if (data.error || !data.album) {
+    return null;
+  }
+
+  const albumData = data.album;
+
+  const tags: LastFmTag[] = (albumData.tags?.tag ?? []).map((tag) => ({
+    name: tag.name,
+    url: tag.url,
+  }));
+
+  const images = albumData.image ?? [];
+  const preferredSizes = ['extralarge', 'large', 'medium', 'small'];
+  let imageUrl: string | null = null;
+  for (const size of preferredSizes) {
+    const found = images.find((img) => img.size === size && img['#text']);
+    if (found) {
+      imageUrl = found['#text'];
+      break;
+    }
+  }
+
+  return {
+    tags,
+    listeners: parseInt(albumData.listeners ?? '0', 10) || 0,
+    playcount: parseInt(albumData.playcount ?? '0', 10) || 0,
+    imageUrl,
+    url: albumData.url ?? null,
+  };
+}
+
+/** Single Last.fm lookup; no console noise on 404 / album not found. */
+export async function getAlbumInfo(artist: string, album: string): Promise<LastFmAlbum | null> {
   const apiKey = process.env.LASTFM_API_KEY;
 
   if (!apiKey) {
@@ -110,49 +170,75 @@ export async function getAlbumInfo(
     return null;
   }
 
+  const a = artist.trim();
+  const b = album.trim();
+  if (!a || !b) return null;
+
   try {
     const response = await axios.get<LastFmApiResponse>(LASTFM_BASE_URL, {
       params: {
         method: 'album.getinfo',
         api_key: apiKey,
-        artist,
-        album,
+        artist: a,
+        album: b,
         format: 'json',
         autocorrect: 1,
       },
     });
 
-    const data = response.data;
-
-    if (data.error || !data.album) {
-      return null;
-    }
-
-    const albumData = data.album;
-
-    const tags: LastFmTag[] = (albumData.tags?.tag ?? []).map((tag) => ({
-      name: tag.name,
-      url: tag.url,
-    }));
-
-    // Pick the largest available image (extralarge > large > medium)
-    const images = albumData.image ?? [];
-    const preferredSizes = ['extralarge', 'large', 'medium', 'small'];
-    let imageUrl: string | null = null;
-    for (const size of preferredSizes) {
-      const found = images.find((img) => img.size === size && img['#text']);
-      if (found) { imageUrl = found['#text']; break; }
-    }
-
-    return {
-      tags,
-      listeners: parseInt(albumData.listeners ?? '0', 10) || 0,
-      playcount: parseInt(albumData.playcount ?? '0', 10) || 0,
-      imageUrl,
-      url: albumData.url ?? null,
-    };
+    return parseLastFmAlbumPayload(response.data);
   } catch (err) {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status;
+      if (status === 404) return null;
+      const body = err.response?.data as { error?: number } | undefined;
+      if (body?.error === 6) return null;
+    }
     console.error('Last.fm API error:', err);
     return null;
   }
+}
+
+function beforeFeatSegment(artist: string): string {
+  const m = artist.split(/\b(feat\.?|ft\.?|featuring)\b/i)[0];
+  return m.trim();
+}
+
+/**
+ * Try several artist/album variants (RYM export quirks, feat., edition suffixes).
+ */
+export async function getAlbumInfoBestEffort(
+  rawArtist: string,
+  rawAlbum: string
+): Promise<LastFmAlbum | null> {
+  const artistNorm = normalizeLastFmArtist(rawArtist);
+  const albumStripped = normalizeLastFmAlbumTitle(rawAlbum);
+  const albumFull = stripNonAscii(rawAlbum).replace(/\s+/g, ' ').trim();
+
+  const pairs: Array<[string, string]> = [];
+  const add = (ar: string, al: string) => {
+    const x = ar.trim();
+    const y = al.trim();
+    if (x && y) pairs.push([x, y]);
+  };
+
+  add(artistNorm, albumStripped);
+  if (albumFull !== albumStripped) add(artistNorm, albumFull);
+
+  const featStripped = beforeFeatSegment(artistNorm);
+  if (featStripped !== artistNorm) {
+    add(featStripped, albumStripped);
+    if (albumFull !== albumStripped) add(featStripped, albumFull);
+  }
+
+  const seen = new Set<string>();
+  for (const [ar, al] of pairs) {
+    const key = `${ar}\0${al}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const r = await getAlbumInfo(ar, al);
+    if (r) return r;
+  }
+
+  return null;
 }

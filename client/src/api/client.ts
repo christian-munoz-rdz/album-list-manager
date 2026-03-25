@@ -27,6 +27,8 @@ export const reorderAlbums = (list_id: string, album_ids: string[]) =>
   api.put('/albums/reorder', { list_id, album_ids }).then(r => r.data);
 export const updateNote = (list_id: string, spotify_album_id: string, note: string) =>
   api.put('/albums/note', { list_id, spotify_album_id, note }).then(r => r.data);
+export const refreshAlbumCover = (list_id: string, spotify_album_id: string) =>
+  api.post<{ album: Album }>('/albums/refresh-cover', { list_id, spotify_album_id }).then(r => r.data);
 export const getAlbumDetails = (spotify_album_id: string) =>
   api.get<Album>(`/albums/${spotify_album_id}`).then(r => r.data);
 

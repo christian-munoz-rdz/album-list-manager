@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { query } from '../db';
 import { requireUser } from '../middleware/auth';
 import { searchAlbums, getAlbum, getClientAccessToken } from '../services/spotify';
-import { getAlbumInfo } from '../services/lastfm';
+import { getAlbumInfo, getAlbumInfoBestEffort, normalizeLastFmAlbumTitle, normalizeLastFmArtist } from '../services/lastfm';
 
 const router = Router();
 
@@ -246,6 +246,129 @@ router.put('/note', requireUser, async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Error updating album note:', err);
     res.status(500).json({ error: 'Failed to update note' });
+  }
+});
+
+// POST /api/albums/refresh-cover — re-fetch cover + Last.fm stats from cache row (must be before /:spotify_album_id)
+router.post('/refresh-cover', requireUser, async (req: Request, res: Response) => {
+  const { list_id, spotify_album_id } = req.body;
+
+  if (!list_id || !spotify_album_id) {
+    return res.status(400).json({ error: 'list_id and spotify_album_id are required' });
+  }
+
+  try {
+    const member = await query(
+      `SELECT la.spotify_album_id
+       FROM list_albums la
+       JOIN lists l ON l.id = la.list_id
+       WHERE la.list_id = $1 AND la.spotify_album_id = $2 AND l.user_id = $3`,
+      [list_id, spotify_album_id, req.userId]
+    );
+
+    if (member.rows.length === 0) {
+      return res.status(404).json({ error: 'Album not found in list' });
+    }
+
+    const cacheResult = await query('SELECT * FROM albums_cache WHERE spotify_album_id = $1', [
+      spotify_album_id,
+    ]);
+
+    if (cacheResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Album not in cache' });
+    }
+
+    const row = cacheResult.rows[0] as Record<string, unknown>;
+    const artist = String(row.artist_name ?? '');
+    const album = String(row.album_name ?? '');
+
+    let imageUrl: string | null = (row.image_url as string | null) ?? null;
+    let imagesJson: string =
+      row.images != null ? JSON.stringify(row.images) : JSON.stringify([]);
+    let lastfmListeners = row.lastfm_listeners as number | null;
+    let lastfmPlaycount = row.lastfm_playcount as number | null;
+    let lastfmTagsJson =
+      row.lastfm_tags != null ? JSON.stringify(row.lastfm_tags) : '[]';
+
+    const ext =
+      row.external_urls != null && typeof row.external_urls === 'object'
+        ? { ...(row.external_urls as Record<string, unknown>) }
+        : {};
+
+    const lfm = await getAlbumInfoBestEffort(artist, album);
+    if (lfm) {
+      lastfmListeners = lfm.listeners;
+      lastfmPlaycount = lfm.playcount;
+      if (lfm.tags?.length) lastfmTagsJson = JSON.stringify(lfm.tags);
+      if (lfm.url) ext.lastfm = lfm.url;
+      if (lfm.imageUrl) {
+        imageUrl = lfm.imageUrl;
+        imagesJson = JSON.stringify([{ url: lfm.imageUrl, width: 300, height: 300 }]);
+      }
+    }
+
+    const isSyntheticLastfm = String(spotify_album_id).startsWith('lastfm:');
+    if (!imageUrl && !isSyntheticLastfm) {
+      try {
+        const accessToken = await getClientAccessToken();
+        const spotifyAlbum = await getAlbum(spotify_album_id, accessToken);
+        const spotImg = spotifyAlbum.images?.[0]?.url ?? null;
+        if (spotImg) {
+          imageUrl = spotImg;
+          imagesJson = JSON.stringify(spotifyAlbum.images ?? []);
+        }
+      } catch {
+        // ignore Spotify errors for refresh
+      }
+    }
+
+    if (!imageUrl) {
+      try {
+        const accessToken = await getClientAccessToken();
+        const ar = normalizeLastFmArtist(artist);
+        const al = normalizeLastFmAlbumTitle(album);
+        const q = `album:${al} artist:${ar}`;
+        const items = await searchAlbums(q, accessToken);
+        const first = items[0];
+        const spotImg = first?.images?.[0]?.url ?? null;
+        if (spotImg) {
+          imageUrl = spotImg;
+          imagesJson = JSON.stringify(first?.images ?? []);
+        }
+      } catch {
+        // ignore search errors
+      }
+    }
+
+    await query(
+      `UPDATE albums_cache SET
+        image_url = $2,
+        images = $3::jsonb,
+        lastfm_listeners = $4,
+        lastfm_playcount = $5,
+        lastfm_tags = $6::jsonb,
+        external_urls = $7::jsonb,
+        last_fetched = NOW()
+      WHERE spotify_album_id = $1`,
+      [
+        spotify_album_id,
+        imageUrl,
+        imagesJson,
+        lastfmListeners,
+        lastfmPlaycount,
+        lastfmTagsJson,
+        JSON.stringify(ext),
+      ]
+    );
+
+    const updated = await query('SELECT * FROM albums_cache WHERE spotify_album_id = $1', [
+      spotify_album_id,
+    ]);
+
+    res.json({ album: updated.rows[0] });
+  } catch (err) {
+    console.error('Error refreshing album cover:', err);
+    res.status(500).json({ error: 'Failed to refresh album cover' });
   }
 });
 

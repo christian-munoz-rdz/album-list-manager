@@ -2,7 +2,7 @@ import axios from 'axios';
 import { Router, Request, Response } from 'express';
 import { query } from '../db';
 import { requireUser } from '../middleware/auth';
-import { getAlbumInfo } from '../services/lastfm';
+import { getAlbumInfo, getAlbumInfoBestEffort, normalizeLastFmAlbumTitle, normalizeLastFmArtist } from '../services/lastfm';
 import { getClientAccessToken, searchAlbums } from '../services/spotify';
 
 const router = Router();
@@ -133,13 +133,20 @@ router.get('/', requireUser, async (req: Request, res: Response) => {
 router.post('/add-lastfm', requireUser, async (req: Request, res: Response) => {
   const { list_id, artist_name, album_name, lastfm_url, image_url, lastfm_listeners, lastfm_playcount } = req.body;
 
+  console.log('[add-lastfm] body received:', {
+    list_id, artist_name, album_name, lastfm_url, image_url, lastfm_listeners, lastfm_playcount,
+  });
+
   if (!list_id || !artist_name || !album_name) {
     return res.status(400).json({ error: 'list_id, artist_name and album_name are required' });
   }
 
+  const cleanArtist = normalizeLastFmArtist(artist_name);
+  const cleanAlbum = normalizeLastFmAlbumTitle(album_name);
+
   // Synthetic primary key: "lastfm:" + slugified artist + ":" + slugified album
   const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const syntheticId = `lastfm:${slug(artist_name)}:${slug(album_name)}`;
+  const syntheticId = `lastfm:${slug(cleanArtist)}:${slug(cleanAlbum)}`;
 
   try {
     // Verify the list belongs to this user
@@ -158,19 +165,43 @@ router.post('/add-lastfm', requireUser, async (req: Request, res: Response) => {
     let resolvedImageUrl: string | null = image_url ?? null;
 
     const needsLfm = !resolvedListeners && !resolvedPlaycount;
+    console.log(`[add-lastfm] "${cleanArtist} – ${cleanAlbum}" (raw: "${artist_name} – ${album_name}") | needsLfm=${needsLfm}`);
+
     if (needsLfm) {
       try {
-        const lfmInfo = await getAlbumInfo(artist_name, album_name);
+        console.log(`[add-lastfm] getAlbumInfoBestEffort raw "${artist_name}" / "${album_name}"`);
+        const lfmInfo = await getAlbumInfoBestEffort(artist_name, album_name);
+        console.log('[add-lastfm] Last.fm result:', lfmInfo ? `listeners=${lfmInfo.listeners} image=${!!lfmInfo.imageUrl}` : 'null');
         if (lfmInfo) {
           resolvedListeners = lfmInfo.listeners;
           resolvedPlaycount = lfmInfo.playcount;
           if (!resolvedUrl) resolvedUrl = lfmInfo.url;
           if (!resolvedImageUrl) resolvedImageUrl = lfmInfo.imageUrl;
         }
-      } catch {
-        // Non-fatal: store without Last.fm data if fetch fails
+      } catch (err) {
+        console.error('[add-lastfm] Last.fm enrichment threw:', err);
       }
     }
+
+    if (!resolvedImageUrl) {
+      try {
+        const accessToken = await getClientAccessToken();
+        const q = `album:${cleanAlbum} artist:${cleanArtist}`;
+        const items = await searchAlbums(q, accessToken);
+        const first = items[0];
+        const spotImg = first?.images?.[0]?.url ?? null;
+        if (spotImg) {
+          resolvedImageUrl = spotImg;
+          console.log('[add-lastfm] Spotify search fallback image OK');
+        }
+      } catch (err) {
+        console.warn('[add-lastfm] Spotify search fallback failed:', err);
+      }
+    }
+
+    console.log('[add-lastfm] resolved metadata:', {
+      syntheticId, resolvedListeners, resolvedPlaycount, resolvedUrl, resolvedImageUrl,
+    });
 
     // Upsert into albums_cache with Last.fm data
     await query(
@@ -181,13 +212,18 @@ router.post('/add-lastfm', requireUser, async (req: Request, res: Response) => {
         external_urls, genres, lastfm_tags, top_tracks
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'[]','[]','[]')
       ON CONFLICT (spotify_album_id) DO UPDATE SET
+        artist_name = EXCLUDED.artist_name,
+        album_name = EXCLUDED.album_name,
+        image_url = COALESCE(EXCLUDED.image_url, albums_cache.image_url),
+        images = CASE WHEN EXCLUDED.image_url IS NOT NULL THEN EXCLUDED.images ELSE albums_cache.images END,
         lastfm_listeners = EXCLUDED.lastfm_listeners,
         lastfm_playcount = EXCLUDED.lastfm_playcount,
+        external_urls = EXCLUDED.external_urls,
         last_fetched = NOW()`,
       [
         syntheticId,
-        artist_name,
-        album_name,
+        cleanArtist,
+        cleanAlbum,
         resolvedImageUrl,
         resolvedImageUrl ? JSON.stringify([{ url: resolvedImageUrl, width: 300, height: 300 }]) : JSON.stringify([]),
         resolvedListeners,
