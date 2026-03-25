@@ -164,10 +164,8 @@ router.post('/add-lastfm', requireUser, async (req: Request, res: Response) => {
         if (lfmInfo) {
           resolvedListeners = lfmInfo.listeners;
           resolvedPlaycount = lfmInfo.playcount;
-          // Build a Last.fm URL from the first tag's url domain if we don't have one
-          if (!resolvedUrl) {
-            resolvedUrl = `https://www.last.fm/music/${encodeURIComponent(artist_name)}/${encodeURIComponent(album_name)}`;
-          }
+          if (!resolvedUrl) resolvedUrl = lfmInfo.url;
+          if (!resolvedImageUrl) resolvedImageUrl = lfmInfo.imageUrl;
         }
       } catch {
         // Non-fatal: store without Last.fm data if fetch fails

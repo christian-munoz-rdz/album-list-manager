@@ -79,6 +79,8 @@ export interface LastFmAlbum {
   tags: LastFmTag[];
   listeners: number;
   playcount: number;
+  imageUrl: string | null;
+  url: string | null;
 }
 
 interface LastFmApiAlbum {
@@ -87,6 +89,8 @@ interface LastFmApiAlbum {
   };
   listeners?: string;
   playcount?: string;
+  image?: Array<{ '#text': string; size: string }>;
+  url?: string;
 }
 
 interface LastFmApiResponse {
@@ -131,10 +135,21 @@ export async function getAlbumInfo(
       url: tag.url,
     }));
 
+    // Pick the largest available image (extralarge > large > medium)
+    const images = albumData.image ?? [];
+    const preferredSizes = ['extralarge', 'large', 'medium', 'small'];
+    let imageUrl: string | null = null;
+    for (const size of preferredSizes) {
+      const found = images.find((img) => img.size === size && img['#text']);
+      if (found) { imageUrl = found['#text']; break; }
+    }
+
     return {
       tags,
       listeners: parseInt(albumData.listeners ?? '0', 10) || 0,
       playcount: parseInt(albumData.playcount ?? '0', 10) || 0,
+      imageUrl,
+      url: albumData.url ?? null,
     };
   } catch (err) {
     console.error('Last.fm API error:', err);
