@@ -1,11 +1,10 @@
 import axios from 'axios';
-import type { User, List, Album, SpotifySearchResult } from '../types';
+import type { User, List, Album, SpotifySearchResult, ChartResponse } from '../types';
 
 export const api = axios.create({ baseURL: '/api', withCredentials: true });
 
 // Auth
 export const getMe = () => api.get<User>('/auth/me').then(r => r.data);
-export const logout = () => api.post('/auth/logout');
 
 // Lists
 export const getLists = () => api.get<List[]>('/lists').then(r => r.data);
@@ -30,3 +29,8 @@ export const updateNote = (list_id: string, spotify_album_id: string, note: stri
   api.put('/albums/note', { list_id, spotify_album_id, note }).then(r => r.data);
 export const getAlbumDetails = (spotify_album_id: string) =>
   api.get<Album>(`/albums/${spotify_album_id}`).then(r => r.data);
+
+// Charts
+export const getChartAlbums = (tag: string, limit = 50, page = 1) =>
+  api.get<ChartResponse>(`/charts?tag=${encodeURIComponent(tag)}&limit=${limit}&page=${page}`)
+    .then(r => r.data);

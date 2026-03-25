@@ -2,6 +2,74 @@ import axios from 'axios';
 
 const LASTFM_BASE_URL = 'http://ws.audioscrobbler.com/2.0/';
 
+export interface TagTopAlbum {
+  artist: string;
+  album: string;
+  listeners: number;
+  playcount: number;
+  mbid?: string;
+}
+
+interface LastFmTagAlbumItem {
+  name: string;
+  artist: { name: string };
+  mbid?: string;
+  playcount?: string | number;
+  listeners?: string | number;
+}
+
+interface LastFmTagTopAlbumsResponse {
+  albums?: {
+    album?: LastFmTagAlbumItem[];
+    '@attr'?: { page: string; perPage: string; total: string; totalPages: string };
+  };
+  error?: number;
+  message?: string;
+}
+
+export async function getTagTopAlbums(
+  tag: string,
+  page = 1,
+  perPage = 50
+): Promise<TagTopAlbum[]> {
+  const apiKey = process.env.LASTFM_API_KEY;
+
+  if (!apiKey) {
+    console.warn('LASTFM_API_KEY not set, skipping Last.fm tag chart');
+    return [];
+  }
+
+  try {
+    const response = await axios.get<LastFmTagTopAlbumsResponse>(LASTFM_BASE_URL, {
+      params: {
+        method: 'tag.gettopalbums',
+        tag,
+        api_key: apiKey,
+        format: 'json',
+        page,
+        limit: perPage,
+      },
+    });
+
+    const data = response.data;
+
+    if (data.error || !data.albums?.album) {
+      return [];
+    }
+
+    return data.albums.album.map((item) => ({
+      artist: item.artist.name,
+      album: item.name,
+      mbid: item.mbid || undefined,
+      listeners: parseInt(String(item.listeners ?? '0'), 10) || 0,
+      playcount: parseInt(String(item.playcount ?? '0'), 10) || 0,
+    }));
+  } catch (err) {
+    console.error('Last.fm tag.gettopalbums error:', err);
+    return [];
+  }
+}
+
 export interface LastFmTag {
   name: string;
   url: string;

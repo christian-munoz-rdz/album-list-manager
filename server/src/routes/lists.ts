@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../db';
-import { requireAuth } from '../middleware/auth';
+import { requireUser } from '../middleware/auth';
 
 const router = Router();
 
@@ -17,7 +17,7 @@ function generateSlug(title: string): string {
 }
 
 // GET /api/lists - Get all lists for current user with album counts
-router.get('/', requireAuth, async (req: Request, res: Response) => {
+router.get('/', requireUser, async (req: Request, res: Response) => {
   try {
     const result = await query(
       `SELECT l.*, COUNT(la.id)::int AS album_count
@@ -26,7 +26,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
        WHERE l.user_id = $1
        GROUP BY l.id
        ORDER BY l.created_at DESC`,
-      [req.session.userId]
+      [req.userId]
     );
 
     res.json(result.rows);
@@ -37,7 +37,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
 });
 
 // POST /api/lists - Create a new list
-router.post('/', requireAuth, async (req: Request, res: Response) => {
+router.post('/', requireUser, async (req: Request, res: Response) => {
   const { title, description, is_public } = req.body;
 
   if (!title || typeof title !== 'string' || title.trim().length === 0) {
@@ -48,7 +48,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     // Enforce max 10 lists per user
     const countResult = await query(
       'SELECT COUNT(*)::int AS count FROM lists WHERE user_id = $1',
-      [req.session.userId]
+      [req.userId]
     );
 
     if (countResult.rows[0].count >= 10) {
@@ -62,7 +62,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       `INSERT INTO lists (user_id, title, description, is_public, slug)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [req.session.userId, title.trim(), description ?? null, isPublic, slug]
+      [req.userId, title.trim(), description ?? null, isPublic, slug]
     );
 
     res.status(201).json(result.rows[0]);
@@ -108,7 +108,7 @@ router.get('/shared/:slug', async (req: Request, res: Response) => {
 });
 
 // GET /api/lists/:id - Get a single list with albums
-router.get('/:id', requireAuth, async (req: Request, res: Response) => {
+router.get('/:id', requireUser, async (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
@@ -124,7 +124,7 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
     const list = listResult.rows[0];
 
     // User must own the list or it must be public
-    if (list.user_id !== req.session.userId && !list.is_public) {
+    if (list.user_id !== req.userId && !list.is_public) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -145,14 +145,14 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
 });
 
 // PUT /api/lists/:id - Update a list
-router.put('/:id', requireAuth, async (req: Request, res: Response) => {
+router.put('/:id', requireUser, async (req: Request, res: Response) => {
   const { id } = req.params;
   const { title, description, is_public } = req.body;
 
   try {
     const listResult = await query(
       'SELECT * FROM lists WHERE id = $1 AND user_id = $2',
-      [id, req.session.userId]
+      [id, req.userId]
     );
 
     if (listResult.rows.length === 0) {
@@ -182,7 +182,7 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
        SET title = $1, description = $2, is_public = $3, slug = $4, updated_at = NOW()
        WHERE id = $5 AND user_id = $6
        RETURNING *`,
-      [newTitle, newDescription, newIsPublic, newSlug, id, req.session.userId]
+      [newTitle, newDescription, newIsPublic, newSlug, id, req.userId]
     );
 
     res.json(result.rows[0]);
@@ -193,13 +193,13 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
 });
 
 // DELETE /api/lists/:id - Delete a list
-router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
+router.delete('/:id', requireUser, async (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
     const result = await query(
       'DELETE FROM lists WHERE id = $1 AND user_id = $2 RETURNING id',
-      [id, req.session.userId]
+      [id, req.userId]
     );
 
     if (result.rows.length === 0) {

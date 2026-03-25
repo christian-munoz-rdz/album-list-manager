@@ -1,66 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { query } from '../db';
-import { requireAuth } from '../middleware/auth';
-import {
-  searchAlbums,
-  getAlbum,
-  refreshAccessToken,
-} from '../services/spotify';
+import { requireUser } from '../middleware/auth';
+import { searchAlbums, getAlbum, getClientAccessToken } from '../services/spotify';
 import { getAlbumInfo } from '../services/lastfm';
 
 const router = Router();
 
-/**
- * Ensure the session has a valid Spotify access token.
- * Refreshes the token if expired, updates session and DB.
- */
-async function ensureFreshToken(req: Request): Promise<string> {
-  const now = Date.now();
-
-  if (req.session.spotifyTokenExpiresAt && req.session.spotifyTokenExpiresAt < now) {
-    const refreshToken = req.session.spotifyRefreshToken;
-    if (!refreshToken) {
-      throw new Error('No refresh token available');
-    }
-
-    const tokens = await refreshAccessToken(refreshToken);
-    const expiresAt = now + tokens.expires_in * 1000;
-
-    // Update session
-    req.session.spotifyAccessToken = tokens.access_token;
-    req.session.spotifyTokenExpiresAt = expiresAt;
-    if (tokens.refresh_token) {
-      req.session.spotifyRefreshToken = tokens.refresh_token;
-    }
-
-    // Update DB
-    await query(
-      `UPDATE users
-       SET spotify_access_token = $1,
-           spotify_refresh_token = COALESCE($2, spotify_refresh_token),
-           spotify_token_expires_at = $3,
-           updated_at = NOW()
-       WHERE id = $4`,
-      [
-        tokens.access_token,
-        tokens.refresh_token ?? null,
-        new Date(expiresAt).toISOString(),
-        req.session.userId,
-      ]
-    );
-
-    return tokens.access_token;
-  }
-
-  if (!req.session.spotifyAccessToken) {
-    throw new Error('No access token in session');
-  }
-
-  return req.session.spotifyAccessToken;
-}
-
-// GET /api/albums/search?q=query - Search Spotify albums
-router.get('/search', requireAuth, async (req: Request, res: Response) => {
+// GET /api/albums/search?q=query - Search Spotify albums (client-credentials)
+router.get('/search', requireUser, async (req: Request, res: Response) => {
   const { q } = req.query;
 
   if (!q || typeof q !== 'string' || q.trim().length === 0) {
@@ -68,17 +15,26 @@ router.get('/search', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    const accessToken = await ensureFreshToken(req);
+    const accessToken = await getClientAccessToken();
     const albums = await searchAlbums(q.trim(), accessToken);
     res.json(albums);
   } catch (err) {
+    if (err instanceof Error && 'isAxiosError' in err) {
+      const axiosErr = err as Error & {
+        response?: { status?: number; data?: { error?: { message?: string } } };
+      };
+      const status = axiosErr.response?.status ?? 500;
+      const message = axiosErr.response?.data?.error?.message ?? 'Failed to search albums';
+      console.error('Error searching albums:', { status, message });
+      return res.status(status).json({ error: message });
+    }
     console.error('Error searching albums:', err);
     res.status(500).json({ error: 'Failed to search albums' });
   }
 });
 
 // POST /api/albums/add - Add album to list
-router.post('/add', requireAuth, async (req: Request, res: Response) => {
+router.post('/add', requireUser, async (req: Request, res: Response) => {
   const { list_id, spotify_album_id } = req.body;
 
   if (!list_id || !spotify_album_id) {
@@ -86,24 +42,22 @@ router.post('/add', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    // Verify the list belongs to the current user
     const listResult = await query(
       'SELECT id FROM lists WHERE id = $1 AND user_id = $2',
-      [list_id, req.session.userId]
+      [list_id, req.userId]
     );
 
     if (listResult.rows.length === 0) {
       return res.status(404).json({ error: 'List not found' });
     }
 
-    // Check if album is already in cache; fetch from Spotify if not
     let cacheResult = await query(
       'SELECT * FROM albums_cache WHERE spotify_album_id = $1',
       [spotify_album_id]
     );
 
     if (cacheResult.rows.length === 0) {
-      const accessToken = await ensureFreshToken(req);
+      const accessToken = await getClientAccessToken();
       const spotifyAlbum = await getAlbum(spotify_album_id, accessToken);
 
       const artistName = spotifyAlbum.artists.map((a) => a.name).join(', ');
@@ -112,7 +66,6 @@ router.post('/add', requireAuth, async (req: Request, res: Response) => {
         : null;
       const imageUrl = spotifyAlbum.images?.[0]?.url ?? null;
 
-      // Fetch Last.fm data for enrichment
       const lastfmData = await getAlbumInfo(
         spotifyAlbum.artists[0]?.name ?? '',
         spotifyAlbum.name
@@ -171,14 +124,12 @@ router.post('/add', requireAuth, async (req: Request, res: Response) => {
       );
     }
 
-    // Determine next position
     const posResult = await query(
       'SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM list_albums WHERE list_id = $1',
       [list_id]
     );
     const nextPos: number = posResult.rows[0].next_pos;
 
-    // Add album to list
     await query(
       `INSERT INTO list_albums (list_id, spotify_album_id, position)
        VALUES ($1, $2, $3)
@@ -194,7 +145,7 @@ router.post('/add', requireAuth, async (req: Request, res: Response) => {
 });
 
 // DELETE /api/albums/remove - Remove album from list
-router.delete('/remove', requireAuth, async (req: Request, res: Response) => {
+router.delete('/remove', requireUser, async (req: Request, res: Response) => {
   const { list_id, spotify_album_id } = req.body;
 
   if (!list_id || !spotify_album_id) {
@@ -202,10 +153,9 @@ router.delete('/remove', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    // Verify the list belongs to the current user
     const listResult = await query(
       'SELECT id FROM lists WHERE id = $1 AND user_id = $2',
-      [list_id, req.session.userId]
+      [list_id, req.userId]
     );
 
     if (listResult.rows.length === 0) {
@@ -229,7 +179,7 @@ router.delete('/remove', requireAuth, async (req: Request, res: Response) => {
 });
 
 // PUT /api/albums/reorder - Reorder albums in list
-router.put('/reorder', requireAuth, async (req: Request, res: Response) => {
+router.put('/reorder', requireUser, async (req: Request, res: Response) => {
   const { list_id, album_ids } = req.body;
 
   if (!list_id || !Array.isArray(album_ids)) {
@@ -237,17 +187,15 @@ router.put('/reorder', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    // Verify the list belongs to the current user
     const listResult = await query(
       'SELECT id FROM lists WHERE id = $1 AND user_id = $2',
-      [list_id, req.session.userId]
+      [list_id, req.userId]
     );
 
     if (listResult.rows.length === 0) {
       return res.status(404).json({ error: 'List not found' });
     }
 
-    // Update positions for each album
     const updatePromises = (album_ids as string[]).map((albumId, index) =>
       query(
         'UPDATE list_albums SET position = $1 WHERE list_id = $2 AND spotify_album_id = $3',
@@ -265,7 +213,7 @@ router.put('/reorder', requireAuth, async (req: Request, res: Response) => {
 });
 
 // PUT /api/albums/note - Update note for an album in a list
-router.put('/note', requireAuth, async (req: Request, res: Response) => {
+router.put('/note', requireUser, async (req: Request, res: Response) => {
   const { list_id, spotify_album_id, note } = req.body;
 
   if (!list_id || !spotify_album_id) {
@@ -273,10 +221,9 @@ router.put('/note', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    // Verify the list belongs to the current user
     const listResult = await query(
       'SELECT id FROM lists WHERE id = $1 AND user_id = $2',
-      [list_id, req.session.userId]
+      [list_id, req.userId]
     );
 
     if (listResult.rows.length === 0) {
@@ -303,7 +250,7 @@ router.put('/note', requireAuth, async (req: Request, res: Response) => {
 });
 
 // GET /api/albums/:spotify_album_id - Get enriched album details
-router.get('/:spotify_album_id', requireAuth, async (req: Request, res: Response) => {
+router.get('/:spotify_album_id', requireUser, async (req: Request, res: Response) => {
   const { spotify_album_id } = req.params;
 
   try {
@@ -316,8 +263,7 @@ router.get('/:spotify_album_id', requireAuth, async (req: Request, res: Response
       return res.json(cacheResult.rows[0]);
     }
 
-    // Fetch from Spotify if not in cache
-    const accessToken = await ensureFreshToken(req);
+    const accessToken = await getClientAccessToken();
     const spotifyAlbum = await getAlbum(spotify_album_id, accessToken);
 
     const artistName = spotifyAlbum.artists.map((a) => a.name).join(', ');

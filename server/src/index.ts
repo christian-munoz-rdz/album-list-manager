@@ -1,6 +1,4 @@
-import dotenv from 'dotenv';
-dotenv.config();
-
+import './env';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import session from 'express-session';
@@ -10,6 +8,7 @@ import { pool } from './db';
 import authRouter from './routes/auth';
 import listsRouter from './routes/lists';
 import albumsRouter from './routes/albums';
+import chartsRouter from './routes/charts';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -52,6 +51,7 @@ app.use(
 app.use('/api/auth', authRouter);
 app.use('/api/lists', listsRouter);
 app.use('/api/albums', albumsRouter);
+app.use('/api/charts', chartsRouter);
 
 // Health check
 app.get('/health', (_req: Request, res: Response) => {

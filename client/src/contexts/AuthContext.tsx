@@ -1,19 +1,16 @@
 import React, { createContext, useContext } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getMe, logout as apiLogout } from '../api/client';
+import { useQuery } from '@tanstack/react-query';
+import { getMe } from '../api/client';
 import type { User } from '../types';
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  isAuthenticated: boolean;
-  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const queryClient = useQueryClient();
   const { data: user, isLoading } = useQuery({
     queryKey: ['me'],
     queryFn: getMe,
@@ -21,14 +18,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     staleTime: 5 * 60 * 1000,
   });
 
-  const logout = async () => {
-    await apiLogout();
-    queryClient.clear();
-    window.location.href = '/';
-  };
-
   return (
-    <AuthContext.Provider value={{ user: user ?? null, isLoading, isAuthenticated: !!user, logout }}>
+    <AuthContext.Provider value={{ user: user ?? null, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -9,13 +9,6 @@ export interface SpotifyTokens {
   expires_in: number;
 }
 
-export interface SpotifyUser {
-  id: string;
-  display_name: string;
-  email: string;
-  images: Array<{ url: string }>;
-}
-
 export interface SpotifyAlbum {
   id: string;
   name: string;
@@ -36,70 +29,27 @@ export interface SpotifyAlbum {
   external_urls: { spotify: string };
 }
 
-export function getAuthUrl(state: string): string {
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
+let clientCredsCache: { token: string; expiresAt: number } | null = null;
 
-  if (!clientId || !redirectUri) {
-    throw new Error('Missing SPOTIFY_CLIENT_ID or SPOTIFY_REDIRECT_URI env vars');
+/** Server-only token (no user login). Used for search + album metadata. */
+export async function getClientAccessToken(): Promise<string> {
+  const now = Date.now();
+  if (clientCredsCache && now < clientCredsCache.expiresAt - 60_000) {
+    return clientCredsCache.token;
   }
 
-  const params = new URLSearchParams({
-    response_type: 'code',
-    client_id: clientId,
-    scope: 'user-read-email user-read-private',
-    redirect_uri: redirectUri,
-    state,
-  });
-
-  return `${SPOTIFY_AUTH_BASE}/authorize?${params.toString()}`;
-}
-
-export async function exchangeCode(code: string): Promise<SpotifyTokens> {
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-  const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
-
-  if (!clientId || !clientSecret || !redirectUri) {
-    throw new Error('Missing Spotify credentials in environment variables');
-  }
-
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-
-  const response = await axios.post<SpotifyTokens>(
-    `${SPOTIFY_AUTH_BASE}/api/token`,
-    new URLSearchParams({
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: redirectUri,
-    }),
-    {
-      headers: {
-        Authorization: `Basic ${credentials}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-    }
-  );
-
-  return response.data;
-}
-
-export async function refreshAccessToken(refreshToken: string): Promise<SpotifyTokens> {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    throw new Error('Missing Spotify credentials in environment variables');
+    throw new Error('Missing SPOTIFY_CLIENT_ID or SPOTIFY_CLIENT_SECRET');
   }
 
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
   const response = await axios.post<SpotifyTokens>(
     `${SPOTIFY_AUTH_BASE}/api/token`,
-    new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-    }),
+    new URLSearchParams({ grant_type: 'client_credentials' }),
     {
       headers: {
         Authorization: `Basic ${credentials}`,
@@ -108,23 +58,23 @@ export async function refreshAccessToken(refreshToken: string): Promise<SpotifyT
     }
   );
 
-  return response.data;
-}
-
-export async function getUserProfile(accessToken: string): Promise<SpotifyUser> {
-  const response = await axios.get<SpotifyUser>(`${SPOTIFY_API_BASE}/me`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
-
-  return response.data;
+  const { access_token, expires_in } = response.data;
+  clientCredsCache = {
+    token: access_token,
+    expiresAt: now + expires_in * 1000,
+  };
+  return access_token;
 }
 
 export async function searchAlbums(
   searchQuery: string,
   accessToken: string
 ): Promise<SpotifyAlbum[]> {
+  const market = process.env.SPOTIFY_MARKET || 'US';
+  const configuredLimit = Number(process.env.SPOTIFY_SEARCH_LIMIT ?? 10);
+  const limit = Number.isFinite(configuredLimit)
+    ? Math.min(50, Math.max(1, Math.trunc(configuredLimit)))
+    : 10;
   const response = await axios.get<{
     albums: { items: SpotifyAlbum[] };
   }>(`${SPOTIFY_API_BASE}/search`, {
@@ -134,7 +84,8 @@ export async function searchAlbums(
     params: {
       q: searchQuery,
       type: 'album',
-      limit: 20,
+      limit,
+      market,
     },
   });
 
@@ -142,10 +93,12 @@ export async function searchAlbums(
 }
 
 export async function getAlbum(albumId: string, accessToken: string): Promise<SpotifyAlbum> {
+  const market = process.env.SPOTIFY_MARKET || 'US';
   const response = await axios.get<SpotifyAlbum>(`${SPOTIFY_API_BASE}/albums/${albumId}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
+    params: { market },
   });
 
   return response.data;

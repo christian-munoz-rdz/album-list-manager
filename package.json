@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace=server\" \"npm run dev --workspace=client\"",
     "build": "npm run build --workspace=server && npm run build --workspace=client",
-    "install:all": "npm install && npm install --workspace=server && npm install --workspace=client"
+    "install:all": "npm install && npm install --workspace=server && npm install --workspace=client",
+    "seed:playlist": "npm run seed:playlist --workspace=server"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

@@ -63,3 +63,21 @@ export interface DashboardStats {
   top_genres: Array<{ genre: string; count: number }>;
   recently_added: ListAlbum[];
 }
+
+export interface ChartAlbum {
+  spotify_album_id: null;
+  artist_name: string;
+  album_name: string;
+  lastfm_url: string;
+  images: Array<{ url: string; width: number; height: number }>;
+  lastfm_listeners: number;
+  lastfm_playcount: number;
+  lastfm_rank: number;
+}
+
+export interface ChartResponse {
+  results: ChartAlbum[];
+  totalPages: number;
+  page: number;
+  limit: number;
+}
