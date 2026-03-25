@@ -29,7 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_lists_user_id ON lists(user_id);
 CREATE INDEX IF NOT EXISTS idx_lists_slug ON lists(slug);
 
 CREATE TABLE IF NOT EXISTS albums_cache (
-  spotify_album_id VARCHAR(255) PRIMARY KEY,
+  album_id VARCHAR(255) PRIMARY KEY,
   artist_name VARCHAR(500) NOT NULL,
   album_name VARCHAR(500) NOT NULL,
   release_year INTEGER,
@@ -49,18 +49,16 @@ CREATE TABLE IF NOT EXISTS albums_cache (
 CREATE TABLE IF NOT EXISTS list_albums (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   list_id UUID NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
-  spotify_album_id VARCHAR(255) NOT NULL REFERENCES albums_cache(spotify_album_id),
+  album_id VARCHAR(255) NOT NULL REFERENCES albums_cache(album_id) ON DELETE CASCADE,
   position INTEGER NOT NULL DEFAULT 0,
   user_note TEXT,
   rating SMALLINT NOT NULL DEFAULT 0,
   added_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(list_id, spotify_album_id)
+  CONSTRAINT list_albums_list_id_album_id_key UNIQUE (list_id, album_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_list_albums_list_id ON list_albums(list_id);
-
--- Existing databases: add rating if missing
-ALTER TABLE list_albums ADD COLUMN IF NOT EXISTS rating SMALLINT NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_list_albums_album_id ON list_albums(album_id);
 
 CREATE TABLE IF NOT EXISTS session (
   sid VARCHAR NOT NULL COLLATE "default",

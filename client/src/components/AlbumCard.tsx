@@ -27,7 +27,7 @@ export default function AlbumCard({ album, listId, editable = false, sortable = 
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: album.spotify_album_id, disabled: !sortable });
+  } = useSortable({ id: album.album_id, disabled: !sortable });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -37,14 +37,14 @@ export default function AlbumCard({ album, listId, editable = false, sortable = 
   };
 
   const removeMutation = useMutation({
-    mutationFn: () => removeAlbum(listId, album.spotify_album_id),
+    mutationFn: () => removeAlbum(listId, album.album_id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['list', listId] });
     },
   });
 
   const noteMutation = useMutation({
-    mutationFn: (newNote: string) => updateNote(listId, album.spotify_album_id, newNote),
+    mutationFn: (newNote: string) => updateNote(listId, album.album_id, newNote),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['list', listId] });
       setShowNoteEditor(false);
@@ -52,14 +52,14 @@ export default function AlbumCard({ album, listId, editable = false, sortable = 
   });
 
   const refreshCoverMutation = useMutation({
-    mutationFn: () => refreshAlbumCover(listId, album.spotify_album_id),
+    mutationFn: () => refreshAlbumCover(listId, album.album_id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['list', listId] });
     },
   });
 
   const ratingMutation = useMutation({
-    mutationFn: (rating: number) => updateRating(listId, album.spotify_album_id, rating),
+    mutationFn: (rating: number) => updateRating(listId, album.album_id, rating),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['list', listId] });
     },

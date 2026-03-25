@@ -17,7 +17,6 @@ import {
 } from '@dnd-kit/sortable';
 import { getList, updateList, deleteList, reorderAlbums } from '../api/client';
 import AlbumCard from '../components/AlbumCard';
-import AlbumSearch from '../components/AlbumSearch';
 import ImportModal from '../components/ImportModal';
 import AlbumDetailModal from '../components/AlbumDetailModal';
 import ShufflePicker from '../components/ShufflePicker';
@@ -104,15 +103,15 @@ export default function ListDetail() {
     if (!over || active.id === over.id) return;
 
     const albums = localAlbums ?? list?.albums ?? [];
-    const oldIndex = albums.findIndex((a) => a.spotify_album_id === active.id);
-    const newIndex = albums.findIndex((a) => a.spotify_album_id === over.id);
+    const oldIndex = albums.findIndex((a) => a.album_id === active.id);
+    const newIndex = albums.findIndex((a) => a.album_id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
     const reordered = [...albums];
     const [moved] = reordered.splice(oldIndex, 1);
     reordered.splice(newIndex, 0, moved);
     setLocalAlbums(reordered);
-    reorderMutation.mutate(reordered.map((a) => a.spotify_album_id));
+    reorderMutation.mutate(reordered.map((a) => a.album_id));
   };
 
   if (isLoading) {
@@ -295,19 +294,14 @@ export default function ListDetail() {
         )}
       </div>
 
-      {/* Add Albums */}
-      <div className="mb-8">
-        <AlbumSearch listId={id!} />
-      </div>
-
       {/* Album grid */}
       {albums.length > 0 ? (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={albums.map((a) => a.spotify_album_id)} strategy={rectSortingStrategy}>
+          <SortableContext items={albums.map((a) => a.album_id)} strategy={rectSortingStrategy}>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {albums.map((album) => (
                 <AlbumCard
-                  key={album.spotify_album_id}
+                  key={album.album_id}
                   album={album}
                   listId={id!}
                   editable
@@ -321,7 +315,7 @@ export default function ListDetail() {
         <div className="text-center py-20 border border-dashed border-zinc-800 rounded-2xl">
           <div className="text-4xl mb-3">💿</div>
           <p className="text-zinc-400 font-medium">No albums yet</p>
-          <p className="text-zinc-600 text-sm mt-1">Search above to add your first album.</p>
+          <p className="text-zinc-600 text-sm mt-1">Import albums from charts or file import.</p>
         </div>
       )}
 

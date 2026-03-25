@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { User, List, Album, SpotifySearchResult, ChartResponse } from '../types';
+import type { User, List, Album, ChartResponse } from '../types';
 
 export const api = axios.create({ baseURL: '/api', withCredentials: true });
 
@@ -17,32 +17,23 @@ export const updateList = (id: string, data: Partial<{ title: string; descriptio
 export const deleteList = (id: string) => api.delete(`/lists/${id}`);
 
 // Albums
-export const searchAlbums = (q: string) =>
-  api.get<SpotifySearchResult[]>(`/albums/search?q=${encodeURIComponent(q)}`).then(r => r.data);
-export const addAlbum = (list_id: string, spotify_album_id: string) =>
-  api.post('/albums/add', { list_id, spotify_album_id }).then(r => r.data);
-export const removeAlbum = (list_id: string, spotify_album_id: string) =>
-  api.delete('/albums/remove', { data: { list_id, spotify_album_id } });
+export const removeAlbum = (list_id: string, album_id: string) =>
+  api.delete('/albums/remove', { data: { list_id, album_id } });
 export const reorderAlbums = (list_id: string, album_ids: string[]) =>
   api.put('/albums/reorder', { list_id, album_ids }).then(r => r.data);
-export const updateNote = (list_id: string, spotify_album_id: string, note: string) =>
-  api.put('/albums/note', { list_id, spotify_album_id, note }).then(r => r.data);
-export const updateRating = (list_id: string, spotify_album_id: string, rating: number) =>
-  api.put('/albums/rating', { list_id, spotify_album_id, rating }).then(r => r.data);
-export const refreshAlbumCover = (list_id: string, spotify_album_id: string) =>
-  api.post<{ album: Album }>('/albums/refresh-cover', { list_id, spotify_album_id }).then(r => r.data);
-export const getAlbumDetails = (spotify_album_id: string) =>
-  api.get<Album>(`/albums/${spotify_album_id}`).then(r => r.data);
+export const updateNote = (list_id: string, album_id: string, note: string) =>
+  api.put('/albums/note', { list_id, album_id, note }).then(r => r.data);
+export const updateRating = (list_id: string, album_id: string, rating: number) =>
+  api.put('/albums/rating', { list_id, album_id, rating }).then(r => r.data);
+export const refreshAlbumCover = (list_id: string, album_id: string) =>
+  api.post<{ album: Album }>('/albums/refresh-cover', { list_id, album_id }).then(r => r.data);
+export const getAlbumDetails = (album_id: string) =>
+  api.get<Album>(`/albums/${album_id}`).then(r => r.data);
 
 // Charts
 export const getChartAlbums = (tag: string, limit = 50, page = 1) =>
   api.get<ChartResponse>(`/charts?tag=${encodeURIComponent(tag)}&limit=${limit}&page=${page}`)
     .then(r => r.data);
-
-export const resolveChartAlbum = (artist: string, album: string) =>
-  api.post<{ spotify_album_id: string; album_name: string; artist_name: string; release_date: string; images: Array<{ url: string; width: number; height: number }>; external_urls: { spotify: string } }>(
-    '/charts/resolve', { artist, album }
-  ).then(r => r.data);
 
 export const addChartAlbum = (
   list_id: string,
@@ -53,7 +44,7 @@ export const addChartAlbum = (
   lastfm_listeners: number,
   lastfm_playcount: number,
 ) =>
-  api.post<{ spotify_album_id: string; list_id: string; position: number }>(
+  api.post<{ album_id: string; list_id: string; position: number }>(
     '/charts/add-lastfm',
     { list_id, artist_name, album_name, lastfm_url, image_url, lastfm_listeners, lastfm_playcount }
   ).then(r => r.data);

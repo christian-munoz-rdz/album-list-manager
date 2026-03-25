@@ -57,7 +57,7 @@ export default function SharedList() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {albums.map((album) => (
             <AlbumCard
-              key={album.spotify_album_id}
+              key={album.album_id}
               album={album}
               listId={list.id}
             />

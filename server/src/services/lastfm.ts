@@ -1,4 +1,5 @@
 import axios from 'axios';
+import crypto from 'crypto';
 
 const LASTFM_BASE_URL = 'http://ws.audioscrobbler.com/2.0/';
 
@@ -30,6 +31,13 @@ export function normalizeLastFmAlbumTitle(s: string): string {
   t = t.replace(/\s+/g, ' ').trim();
   t = t.replace(/\s*\([^)]*\)\s*$/, '').trim();
   return t;
+}
+
+export function makeAlbumId(artist: string, album: string): string {
+  const normArtist = normalizeLastFmArtist(artist).toLowerCase();
+  const normAlbum = normalizeLastFmAlbumTitle(album).toLowerCase();
+  const digest = crypto.createHash('md5').update(`${normArtist}|${normAlbum}`).digest('hex');
+  return `lfm:${digest}`;
 }
 
 export interface TagTopAlbum {

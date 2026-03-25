@@ -19,7 +19,7 @@ export default function ShufflePicker({ albums, open, onClose, onComplete }: Shu
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelledRef = useRef(false);
 
-  const albumsKey = useMemo(() => albums.map((a) => a.spotify_album_id).join('|'), [albums]);
+  const albumsKey = useMemo(() => albums.map((a) => a.album_id).join('|'), [albums]);
 
   useEffect(() => {
     if (!open || albums.length === 0) {

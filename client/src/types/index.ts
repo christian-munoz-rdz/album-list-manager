@@ -22,7 +22,7 @@ export interface List {
 }
 
 export interface Album {
-  spotify_album_id: string;
+  album_id: string;
   artist_name: string;
   album_name: string;
   release_year: number | null;
@@ -47,17 +47,6 @@ export interface ListAlbum extends Album {
   added_at: string;
 }
 
-export interface SpotifySearchResult {
-  id: string;
-  name: string;
-  artists: Array<{ id: string; name: string }>;
-  release_date: string;
-  images: Array<{ url: string; width: number; height: number }>;
-  total_tracks: number;
-  popularity: number;
-  external_urls: { spotify: string };
-}
-
 export interface DashboardStats {
   total_lists: number;
   total_albums: number;
@@ -67,7 +56,7 @@ export interface DashboardStats {
 }
 
 export interface ChartAlbum {
-  spotify_album_id: null;
+  album_id: null;
   artist_name: string;
   album_name: string;
   lastfm_url: string;
