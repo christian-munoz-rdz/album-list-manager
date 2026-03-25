@@ -19,6 +19,8 @@ import { getList, updateList, deleteList, reorderAlbums } from '../api/client';
 import AlbumCard from '../components/AlbumCard';
 import AlbumSearch from '../components/AlbumSearch';
 import ImportModal from '../components/ImportModal';
+import AlbumDetailModal from '../components/AlbumDetailModal';
+import ShufflePicker from '../components/ShufflePicker';
 import type { ListAlbum } from '../types';
 
 export default function ListDetail() {
@@ -33,6 +35,8 @@ export default function ListDetail() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [localAlbums, setLocalAlbums] = useState<ListAlbum[] | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [shuffleOpen, setShuffleOpen] = useState(false);
+  const [shuffleDetailAlbum, setShuffleDetailAlbum] = useState<ListAlbum | null>(null);
 
   const { data: list, isLoading, isError } = useQuery({
     queryKey: ['list', id],
@@ -321,6 +325,23 @@ export default function ListDetail() {
         </div>
       )}
 
+      <button
+        type="button"
+        onClick={() => setShuffleOpen(true)}
+        disabled={albums.length === 0}
+        className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-spotify-green text-black shadow-lg shadow-black/40 hover:bg-green-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
+        aria-label="Shuffle album pick"
+        title="Shuffle pick"
+      >
+        <svg viewBox="0 0 20 20" className="w-6 h-6 fill-current" aria-hidden="true">
+          <path
+            fillRule="evenodd"
+            d="M2.75 5.5a.75.75 0 01.75-.75h2.69l1.97-1.97a.75.75 0 111.06 1.06L7.44 5.5h2.31a.75.75 0 010 1.5H6.56l-.97.97a.75.75 0 01-1.06-1.06l.44-.44H3.5a.75.75 0 01-.75-.75zm0 9a.75.75 0 01.75-.75h1.94l4.22-4.22a.75.75 0 111.06 1.06L7.56 14.5h2.69a.75.75 0 010 1.5H6.44l-1.97 1.97a.75.75 0 11-1.06-1.06l1.47-1.47H3.5a.75.75 0 01-.75-.75zm12.5-4.5a.75.75 0 00-.75-.75h-2.69l-1.22-1.22a.75.75 0 10-1.06 1.06l.66.66H8.5a.75.75 0 000 1.5h2.31l1.97 1.97a.75.75 0 101.06-1.06l-1.47-1.47h2.19a.75.75 0 00.75-.75zm-1.28 6.78a.75.75 0 10-1.06-1.06l1.97-1.97h-2.19a.75.75 0 000-1.5h2.69l.97-.97a.75.75 0 111.06 1.06L15.5 16.5h2.19a.75.75 0 010 1.5h-2.69l-1.97 1.97z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+
       {showImportModal && (
         <ImportModal
           defaultListId={id}
@@ -328,6 +349,25 @@ export default function ListDetail() {
             setShowImportModal(false);
             queryClient.invalidateQueries({ queryKey: ['list', id] });
           }}
+        />
+      )}
+
+      <ShufflePicker
+        albums={albums}
+        open={shuffleOpen}
+        onClose={() => setShuffleOpen(false)}
+        onComplete={(a) => {
+          setShuffleOpen(false);
+          setShuffleDetailAlbum(a);
+        }}
+      />
+
+      {shuffleDetailAlbum && (
+        <AlbumDetailModal
+          album={shuffleDetailAlbum}
+          listId={id!}
+          editable
+          onClose={() => setShuffleDetailAlbum(null)}
         />
       )}
     </div>

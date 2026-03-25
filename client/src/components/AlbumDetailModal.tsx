@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAlbumDetails, updateNote } from '../api/client';
+import { getAlbumDetails, updateNote, updateRating } from '../api/client';
 import type { ListAlbum } from '../types';
+import StarRating from './StarRating';
 
 interface AlbumDetailModalProps {
   album: ListAlbum;
@@ -26,6 +27,7 @@ function formatNumber(n: number): string {
 export default function AlbumDetailModal({ album, listId, editable = false, onClose }: AlbumDetailModalProps) {
   const queryClient = useQueryClient();
   const [note, setNote] = useState(album.user_note ?? '');
+  const [rating, setRating] = useState(Number(album.rating) || 0);
   const [playingTrackId, setPlayingTrackId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -41,6 +43,11 @@ export default function AlbumDetailModal({ album, listId, editable = false, onCl
     return () => { audioRef.current?.pause(); };
   }, []);
 
+  useEffect(() => {
+    setNote(album.user_note ?? '');
+    setRating(Number(album.rating) || 0);
+  }, [album.spotify_album_id, album.user_note, album.rating]);
+
   const { data: details } = useQuery({
     queryKey: ['album-details', album.spotify_album_id],
     queryFn: () => getAlbumDetails(album.spotify_album_id),
@@ -49,6 +56,13 @@ export default function AlbumDetailModal({ album, listId, editable = false, onCl
 
   const noteMutation = useMutation({
     mutationFn: (newNote: string) => updateNote(listId, album.spotify_album_id, newNote),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['list', listId] });
+    },
+  });
+
+  const ratingMutation = useMutation({
+    mutationFn: (r: number) => updateRating(listId, album.spotify_album_id, r),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['list', listId] });
     },
@@ -116,6 +130,19 @@ export default function AlbumDetailModal({ album, listId, editable = false, onCl
             <div className="flex flex-wrap gap-x-3 gap-y-1 text-zinc-500 text-xs mt-2">
               {displayData.release_year && <span>{displayData.release_year}</span>}
               {displayData.total_tracks && <span>{displayData.total_tracks} tracks</span>}
+            </div>
+            <div className="flex flex-wrap items-center gap-3 mt-3">
+              <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wide">Your rating</span>
+              <StarRating
+                value={rating}
+                onChange={(r) => {
+                  setRating(r);
+                  ratingMutation.mutate(r);
+                }}
+                readOnly={!editable}
+                size="md"
+              />
+              {ratingMutation.isPending && <span className="text-xs text-zinc-600">Saving…</span>}
             </div>
             {displayData.external_urls?.spotify && (
               <a

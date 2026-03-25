@@ -52,11 +52,15 @@ CREATE TABLE IF NOT EXISTS list_albums (
   spotify_album_id VARCHAR(255) NOT NULL REFERENCES albums_cache(spotify_album_id),
   position INTEGER NOT NULL DEFAULT 0,
   user_note TEXT,
+  rating SMALLINT NOT NULL DEFAULT 0,
   added_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(list_id, spotify_album_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_list_albums_list_id ON list_albums(list_id);
+
+-- Existing databases: add rating if missing
+ALTER TABLE list_albums ADD COLUMN IF NOT EXISTS rating SMALLINT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS session (
   sid VARCHAR NOT NULL COLLATE "default",

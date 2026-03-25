@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { removeAlbum, updateNote, refreshAlbumCover } from '../api/client';
+import { removeAlbum, updateNote, refreshAlbumCover, updateRating } from '../api/client';
 import type { ListAlbum } from '../types';
 import AlbumDetailModal from './AlbumDetailModal';
+import StarRating from './StarRating';
 
 interface AlbumCardProps {
   album: ListAlbum;
@@ -57,6 +58,13 @@ export default function AlbumCard({ album, listId, editable = false, sortable = 
     },
   });
 
+  const ratingMutation = useMutation({
+    mutationFn: (rating: number) => updateRating(listId, album.spotify_album_id, rating),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['list', listId] });
+    },
+  });
+
   const handleNoteSave = () => {
     noteMutation.mutate(note);
   };
@@ -68,6 +76,7 @@ export default function AlbumCard({ album, listId, editable = false, sortable = 
 
   const imageUrl = album.images?.[0]?.url ?? album.image_url ?? null;
   const tags = (album.lastfm_tags ?? []).slice(0, 3);
+  const ratingValue = Number(album.rating) || 0;
 
   return (
     <>
@@ -157,6 +166,18 @@ export default function AlbumCard({ album, listId, editable = false, sortable = 
               {album.release_year && <span className="text-zinc-600"> · {album.release_year}</span>}
             </p>
           </button>
+
+          <div className="mt-1.5 flex items-center gap-2">
+            <StarRating
+              value={ratingValue}
+              onChange={(r) => ratingMutation.mutate(r)}
+              readOnly={!editable}
+              size="sm"
+            />
+            {ratingMutation.isPending && (
+              <span className="text-[10px] text-zinc-600">Saving…</span>
+            )}
+          </div>
 
           {/* Genre tags */}
           {tags.length > 0 && (

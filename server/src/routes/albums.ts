@@ -249,6 +249,48 @@ router.put('/note', requireUser, async (req: Request, res: Response) => {
   }
 });
 
+// PUT /api/albums/rating - Star rating 0–5 (0 = unrated)
+router.put('/rating', requireUser, async (req: Request, res: Response) => {
+  const { list_id, spotify_album_id, rating } = req.body;
+
+  if (!list_id || !spotify_album_id) {
+    return res.status(400).json({ error: 'list_id and spotify_album_id are required' });
+  }
+
+  const r = Number(rating);
+  if (!Number.isInteger(r) || r < 0 || r > 5) {
+    return res.status(400).json({ error: 'rating must be an integer from 0 to 5' });
+  }
+
+  try {
+    const listResult = await query(
+      'SELECT id FROM lists WHERE id = $1 AND user_id = $2',
+      [list_id, req.userId]
+    );
+
+    if (listResult.rows.length === 0) {
+      return res.status(404).json({ error: 'List not found' });
+    }
+
+    const result = await query(
+      `UPDATE list_albums
+       SET rating = $1
+       WHERE list_id = $2 AND spotify_album_id = $3
+       RETURNING *`,
+      [r, list_id, spotify_album_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Album not found in list' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating album rating:', err);
+    res.status(500).json({ error: 'Failed to update rating' });
+  }
+});
+
 // POST /api/albums/refresh-cover — re-fetch cover + Last.fm stats from cache row (must be before /:spotify_album_id)
 router.post('/refresh-cover', requireUser, async (req: Request, res: Response) => {
   const { list_id, spotify_album_id } = req.body;

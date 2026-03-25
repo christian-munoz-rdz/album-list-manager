@@ -92,7 +92,8 @@ router.get('/shared/:slug', async (req: Request, res: Response) => {
     const list = listResult.rows[0];
 
     const albumsResult = await query(
-      `SELECT ac.*, la.position, la.user_note, la.added_at
+      `SELECT ac.*, la.id AS list_album_id, la.position, la.user_note, la.added_at,
+              COALESCE(la.rating, 0)::int AS rating
        FROM list_albums la
        JOIN albums_cache ac ON ac.spotify_album_id = la.spotify_album_id
        WHERE la.list_id = $1
@@ -129,7 +130,8 @@ router.get('/:id', requireUser, async (req: Request, res: Response) => {
     }
 
     const albumsResult = await query(
-      `SELECT ac.*, la.position, la.user_note, la.added_at
+      `SELECT ac.*, la.id AS list_album_id, la.position, la.user_note, la.added_at,
+              COALESCE(la.rating, 0)::int AS rating
        FROM list_albums la
        JOIN albums_cache ac ON ac.spotify_album_id = la.spotify_album_id
        WHERE la.list_id = $1

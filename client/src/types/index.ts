@@ -35,13 +35,15 @@ export interface Album {
   lastfm_listeners: number | null;
   lastfm_playcount: number | null;
   top_tracks: Array<{ id: string; name: string; duration_ms: number; preview_url: string | null }>;
-  external_urls: { spotify: string } | null;
+  external_urls: { spotify?: string; lastfm?: string } | null;
 }
 
 export interface ListAlbum extends Album {
   list_album_id: string;
   position: number;
   user_note: string | null;
+  /** 1–5 stars, 0 = unrated */
+  rating?: number;
   added_at: string;
 }
 
