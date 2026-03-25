@@ -15,6 +15,8 @@ function coverUrl(a: ListAlbum): string | null {
 export default function ShufflePicker({ albums, open, onClose, onComplete }: ShufflePickerProps) {
   const [displayIdx, setDisplayIdx] = useState(0);
   const [phase, setPhase] = useState<'idle' | 'spinning' | 'done'>('idle');
+  /** Increment to run the shuffle animation again without closing the modal. */
+  const [spinId, setSpinId] = useState(0);
   const winnerRef = useRef(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelledRef = useRef(false);
@@ -54,7 +56,7 @@ export default function ShufflePicker({ albums, open, onClose, onComplete }: Shu
       cancelledRef.current = true;
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [open, albums, albumsKey]);
+  }, [open, albums, albumsKey, spinId]);
 
   if (!open || albums.length === 0) return null;
 
@@ -133,13 +135,20 @@ export default function ShufflePicker({ albums, open, onClose, onComplete }: Shu
         </div>
 
         {phase === 'done' && (
-          <div className="flex flex-col sm:flex-row gap-2 mt-6 justify-center">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-6 justify-center">
             <button
               type="button"
               onClick={() => onComplete(current)}
               className="bg-spotify-green hover:bg-green-400 text-black font-semibold px-5 py-2.5 rounded-full text-sm transition-colors"
             >
               View album
+            </button>
+            <button
+              type="button"
+              onClick={() => setSpinId((k) => k + 1)}
+              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium px-5 py-2.5 rounded-full text-sm transition-colors border border-zinc-600"
+            >
+              Shuffle again
             </button>
             <button
               type="button"
