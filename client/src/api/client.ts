@@ -43,6 +43,9 @@ export const updateNote = (list_id: string, album_id: string, note: string) =>
   api.put('/albums/note', { list_id, album_id, note }).then(r => r.data);
 export const updateRating = (list_id: string, album_id: string, rating: number) =>
   api.put('/albums/rating', { list_id, album_id, rating }).then(r => r.data);
+
+export const updateListened = (list_id: string, album_id: string, listened: boolean) =>
+  api.put('/albums/listened', { list_id, album_id, listened }).then((r) => r.data);
 export const refreshAlbumCover = (list_id: string, album_id: string) =>
   api.post<{ album: Album }>('/albums/refresh-cover', { list_id, album_id }).then(r => r.data);
 export const getAlbumDetails = (album_id: string) =>

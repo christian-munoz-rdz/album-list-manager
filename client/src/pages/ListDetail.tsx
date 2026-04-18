@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -14,21 +14,29 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
   rectSortingStrategy,
+  verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
+import clsx from 'clsx';
 import { getList, updateList, deleteList, reorderAlbums } from '../api/client';
 import AlbumCard from '../components/AlbumCard';
+import AlbumListRow from '../components/AlbumListRow';
 import ImportModal from '../components/ImportModal';
 import ListSearchModal from '../components/ListSearchModal';
 import ShufflePicker from '../components/ShufflePicker';
+import { useAuth } from '../contexts/AuthContext';
 import type { ListAlbum } from '../types';
 import { downloadListAsCsv, downloadListAsJson } from '../utils/exportList';
 
 type ReorderVariables = { albumIds: string[]; previousAlbums: ListAlbum[] };
 
+type ListLayout = 'grid' | 'list';
+type ListenFilter = 'all' | 'unlistened' | 'listened';
+
 export default function ListDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -40,6 +48,8 @@ export default function ListDetail() {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [shuffleOpen, setShuffleOpen] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
+  const [listLayout, setListLayout] = useState<ListLayout>('grid');
+  const [listenFilter, setListenFilter] = useState<ListenFilter>('all');
 
   const { data: list, isLoading, isError } = useQuery({
     queryKey: ['list', id],
@@ -48,7 +58,7 @@ export default function ListDetail() {
   });
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -129,6 +139,30 @@ export default function ListDetail() {
     });
   };
 
+  const baseAlbums = useMemo(() => localAlbums ?? list?.albums ?? [], [localAlbums, list?.albums]);
+
+  const filteredAlbums = useMemo(() => {
+    if (listenFilter === 'listened') return baseAlbums.filter((a) => a.listened_at);
+    if (listenFilter === 'unlistened') return baseAlbums.filter((a) => !a.listened_at);
+    return baseAlbums;
+  }, [baseAlbums, listenFilter]);
+
+  const listenedCount = useMemo(
+    () => baseAlbums.filter((a) => a.listened_at).length,
+    [baseAlbums],
+  );
+  const unlistenedCount = baseAlbums.length - listenedCount;
+
+  /** Shuffle only picks from albums not yet marked as listened */
+  const shufflePool = useMemo(
+    () => baseAlbums.filter((a) => !a.listened_at),
+    [baseAlbums],
+  );
+
+  const isOwner = !!user && !!list && user.id === list.user_id;
+  const canReorder = isOwner && listenFilter === 'all';
+  const sortStrategy = listLayout === 'list' ? verticalListSortingStrategy : rectSortingStrategy;
+
   if (isLoading) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-10">
@@ -155,8 +189,6 @@ export default function ListDetail() {
       </div>
     );
   }
-
-  const albums = localAlbums ?? list.albums ?? [];
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
@@ -213,45 +245,52 @@ export default function ListDetail() {
                   <p className="text-zinc-400 mt-1 text-sm leading-relaxed">{list.description}</p>
                 )}
                 <p className="text-zinc-600 text-sm mt-2">
-                  {albums.length} album{albums.length !== 1 ? 's' : ''}
+                  {baseAlbums.length} album{baseAlbums.length !== 1 ? 's' : ''}
+                  {baseAlbums.length > 0 && (
+                    <span className="text-zinc-500">
+                      {' '}
+                      · {unlistenedCount} not listened · {listenedCount} listened
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
 
             {/* Controls */}
             <div className="flex flex-wrap items-center gap-2 mt-4">
-              {/* Edit title */}
-              <button
-                onClick={handleStartEdit}
-                className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors"
-              >
-                <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
-                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                </svg>
-                Edit
-              </button>
+              {isOwner && (
+                <>
+                  <button
+                    onClick={handleStartEdit}
+                    className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors"
+                  >
+                    <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                    </svg>
+                    Edit
+                  </button>
 
-              {/* Public toggle */}
-              <button
-                onClick={handleTogglePublic}
-                disabled={updateMutation.isPending}
-                className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full transition-colors ${
-                  list.is_public
-                    ? 'text-spotify-green bg-spotify-green/10 border border-spotify-green/30 hover:bg-spotify-green/20'
-                    : 'text-zinc-400 bg-zinc-800 hover:bg-zinc-700'
-                }`}
-              >
-                <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
-                  {list.is_public ? (
-                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10z" />
-                  ) : (
-                    <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
-                  )}
-                </svg>
-                {list.is_public ? 'Public' : 'Private'}
-              </button>
+                  <button
+                    onClick={handleTogglePublic}
+                    disabled={updateMutation.isPending}
+                    className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full transition-colors ${
+                      list.is_public
+                        ? 'text-spotify-green bg-spotify-green/10 border border-spotify-green/30 hover:bg-spotify-green/20'
+                        : 'text-zinc-400 bg-zinc-800 hover:bg-zinc-700'
+                    }`}
+                  >
+                    <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+                      {list.is_public ? (
+                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10z" />
+                      ) : (
+                        <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
+                      )}
+                    </svg>
+                    {list.is_public ? 'Public' : 'Private'}
+                  </button>
+                </>
+              )}
 
-              {/* Copy share link */}
               {list.is_public && list.slug && (
                 <button
                   onClick={handleCopyLink}
@@ -264,36 +303,38 @@ export default function ListDetail() {
                 </button>
               )}
 
-              {/* Add from search */}
+              {isOwner && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowSearchModal(true)}
+                    className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors"
+                  >
+                    <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+                      <path
+                        fillRule="evenodd"
+                        d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    Add albums
+                  </button>
+
+                  <button
+                    onClick={() => setShowImportModal(true)}
+                    className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors"
+                  >
+                    <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                    Import
+                  </button>
+                </>
+              )}
+
               <button
                 type="button"
-                onClick={() => setShowSearchModal(true)}
-                className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors"
-              >
-                <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
-                  <path
-                    fillRule="evenodd"
-                    d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                Add albums
-              </button>
-
-              {/* Import */}
-              <button
-                onClick={() => setShowImportModal(true)}
-                className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors"
-              >
-                <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
-                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-                Import
-              </button>
-
-              <button
-                type="button"
-                onClick={() => downloadListAsJson(list, albums)}
+                onClick={() => downloadListAsJson(list, baseAlbums)}
                 className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors"
                 title="Download list and albums as JSON"
               >
@@ -309,7 +350,7 @@ export default function ListDetail() {
 
               <button
                 type="button"
-                onClick={() => downloadListAsCsv(list, albums)}
+                onClick={() => downloadListAsCsv(list, baseAlbums)}
                 className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors"
                 title="Download list as CSV"
               >
@@ -323,36 +364,101 @@ export default function ListDetail() {
                 Export CSV
               </button>
 
-              {/* Delete */}
-              {!showDeleteConfirm ? (
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="flex items-center gap-1.5 text-sm text-zinc-600 hover:text-red-400 bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors ml-auto"
-                >
-                  <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
-                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  Delete
-                </button>
-              ) : (
-                <div className="flex items-center gap-2 ml-auto">
-                  <span className="text-sm text-zinc-400">Delete this list?</span>
+              {isOwner &&
+                (!showDeleteConfirm ? (
                   <button
-                    onClick={() => deleteMutation.mutate()}
-                    disabled={deleteMutation.isPending}
-                    className="text-sm text-red-400 hover:text-red-300 font-semibold transition-colors"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="flex items-center gap-1.5 text-sm text-zinc-600 hover:text-red-400 bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors ml-auto"
                   >
-                    {deleteMutation.isPending ? 'Deleting…' : 'Yes, delete'}
+                    <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+                      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    Delete
                   </button>
-                  <button
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="text-sm text-zinc-500 hover:text-white transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
+                ) : (
+                  <div className="flex items-center gap-2 ml-auto">
+                    <span className="text-sm text-zinc-400">Delete this list?</span>
+                    <button
+                      onClick={() => deleteMutation.mutate()}
+                      disabled={deleteMutation.isPending}
+                      className="text-sm text-red-400 hover:text-red-300 font-semibold transition-colors"
+                    >
+                      {deleteMutation.isPending ? 'Deleting…' : 'Yes, delete'}
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="text-sm text-zinc-500 hover:text-white transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ))}
             </div>
+
+            {baseAlbums.length > 0 && (
+              <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-zinc-800/80">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-zinc-500 uppercase tracking-wide mr-1">View</span>
+                  <div
+                    className="inline-flex rounded-full bg-zinc-800/90 p-1 border border-zinc-700/80"
+                    role="group"
+                    aria-label="Album layout"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setListLayout('grid')}
+                      className={clsx(
+                        'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+                        listLayout === 'grid' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-zinc-200',
+                      )}
+                    >
+                      Grid
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setListLayout('list')}
+                      className={clsx(
+                        'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+                        listLayout === 'list' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-zinc-200',
+                      )}
+                    >
+                      List
+                    </button>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-2">
+                  <span className="text-xs font-medium text-zinc-500 uppercase tracking-wide sm:mr-1">Listened</span>
+                  <div
+                    className="inline-flex flex-wrap rounded-full bg-zinc-800/90 p-1 border border-zinc-700/80 gap-1"
+                    role="group"
+                    aria-label="Filter by listened"
+                  >
+                    {(
+                      [
+                        ['all', `All (${baseAlbums.length})`] as const,
+                        ['unlistened', `Not listened (${unlistenedCount})`] as const,
+                        ['listened', `Listened (${listenedCount})`] as const,
+                      ] as const
+                    ).map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setListenFilter(key)}
+                        className={clsx(
+                          'px-3 py-1.5 rounded-full text-xs font-medium transition-colors',
+                          listenFilter === key ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-zinc-200',
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {isOwner && listenFilter !== 'all' && (
+                    <p className="text-xs text-amber-200/90 sm:ml-auto">Switch to All to reorder albums.</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -367,37 +473,68 @@ export default function ListDetail() {
           {reorderError}
         </div>
       )}
-      {albums.length > 0 ? (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={albums.map((a) => a.album_id)} strategy={rectSortingStrategy}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {albums.map((album) => (
-                <AlbumCard
-                  key={album.album_id}
-                  album={album}
-                  listId={id!}
-                  editable
-                  sortable
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+      {baseAlbums.length > 0 ? (
+        filteredAlbums.length > 0 ? (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={filteredAlbums.map((a) => a.album_id)} strategy={sortStrategy}>
+              {listLayout === 'grid' ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {filteredAlbums.map((album) => (
+                    <AlbumCard
+                      key={album.album_id}
+                      album={album}
+                      listId={id!}
+                      editable={isOwner}
+                      sortable={canReorder}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 max-w-4xl">
+                  {filteredAlbums.map((album) => (
+                    <AlbumListRow
+                      key={album.album_id}
+                      album={album}
+                      listId={id!}
+                      editable={isOwner}
+                      sortable={canReorder}
+                    />
+                  ))}
+                </div>
+              )}
+            </SortableContext>
+          </DndContext>
+        ) : (
+          <div className="text-center py-16 border border-dashed border-zinc-800 rounded-2xl">
+            <p className="text-zinc-400 font-medium">No albums in this filter.</p>
+            <p className="text-zinc-600 text-sm mt-1">Try another Listened tab or mark some albums.</p>
+          </div>
+        )
       ) : (
         <div className="text-center py-20 border border-dashed border-zinc-800 rounded-2xl">
           <div className="text-4xl mb-3">💿</div>
           <p className="text-zinc-400 font-medium">No albums yet</p>
-          <p className="text-zinc-600 text-sm mt-1">Use Add albums to search Last.fm, or import a file.</p>
+          <p className="text-zinc-600 text-sm mt-1">
+            {isOwner ? 'Use Add albums to search Last.fm, or import a file.' : 'This list is empty.'}
+          </p>
         </div>
       )}
 
       <button
         type="button"
         onClick={() => setShuffleOpen(true)}
-        disabled={albums.length === 0}
+        disabled={shufflePool.length === 0}
         className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-spotify-green text-black shadow-lg shadow-black/40 hover:bg-green-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
-        aria-label="Shuffle album pick"
-        title="Shuffle pick"
+        aria-label={
+          shufflePool.length === 0 && baseAlbums.length > 0
+            ? 'Shuffle unavailable — every album is marked as listened'
+            : 'Shuffle pick among albums you have not listened to yet'
+        }
+        title={
+          shufflePool.length === 0 && baseAlbums.length > 0
+            ? 'All albums are marked as listened — nothing left to shuffle'
+            : 'Pick a random album you have not listened to yet'
+        }
       >
         <svg viewBox="0 0 20 20" className="w-6 h-6 fill-current" aria-hidden="true">
           <path
@@ -408,7 +545,7 @@ export default function ListDetail() {
         </svg>
       </button>
 
-      {showSearchModal && (
+      {showSearchModal && isOwner && (
         <ListSearchModal
           listId={id!}
           listTitle={list.title}
@@ -419,7 +556,7 @@ export default function ListDetail() {
         />
       )}
 
-      {showImportModal && (
+      {showImportModal && isOwner && (
         <ImportModal
           defaultListId={id}
           onClose={() => {
@@ -430,7 +567,7 @@ export default function ListDetail() {
       )}
 
       <ShufflePicker
-        albums={albums}
+        albums={shufflePool}
         open={shuffleOpen}
         onClose={() => setShuffleOpen(false)}
         onComplete={(a) => {

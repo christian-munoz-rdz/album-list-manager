@@ -46,6 +46,8 @@ export interface ListAlbum extends Album {
   user_note: string | null;
   /** 1–5 stars, 0 = unrated */
   rating?: number;
+  /** Set when marked as listened in this list */
+  listened_at?: string | null;
   added_at: string;
 }
 

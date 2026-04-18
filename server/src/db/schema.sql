@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS list_albums (
   position INTEGER NOT NULL DEFAULT 0,
   user_note TEXT,
   rating SMALLINT NOT NULL DEFAULT 0,
+  listened_at TIMESTAMPTZ,
   added_at TIMESTAMPTZ DEFAULT NOW(),
   CONSTRAINT list_albums_list_id_album_id_key UNIQUE (list_id, album_id)
 );

@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { removeAlbum, updateNote, refreshAlbumCover, updateRating } from '../api/client';
+import { removeAlbum, updateNote, refreshAlbumCover, updateRating, updateListened } from '../api/client';
 import type { ListAlbum } from '../types';
 import StarRating from './StarRating';
+import ListenedToggle from './ListenedToggle';
 
 interface AlbumCardProps {
   album: ListAlbum;
@@ -65,6 +66,15 @@ export default function AlbumCard({ album, listId, editable = false, sortable = 
     },
   });
 
+  const listenedMutation = useMutation({
+    mutationFn: (listened: boolean) => updateListened(listId, album.album_id, listened),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['list', listId] });
+    },
+  });
+
+  const isListened = Boolean(album.listened_at);
+
   const handleNoteSave = () => {
     noteMutation.mutate(note);
   };
@@ -83,7 +93,9 @@ export default function AlbumCard({ album, listId, editable = false, sortable = 
       <div
         ref={setNodeRef}
         style={style}
-        className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden hover:border-zinc-700 transition-all duration-150 group flex flex-col"
+        className={`bg-zinc-900 border rounded-2xl overflow-hidden hover:border-zinc-700 transition-all duration-150 group flex flex-col ${
+          isListened ? 'border-emerald-900/80 border-l-4 border-l-emerald-500/90' : 'border-zinc-800'
+        }`}
       >
         {/* Album Art */}
         <div
@@ -167,7 +179,7 @@ export default function AlbumCard({ album, listId, editable = false, sortable = 
             </p>
           </button>
 
-          <div className="mt-1.5 flex items-center gap-2">
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
             <StarRating
               value={ratingValue}
               onChange={(r) => ratingMutation.mutate(r)}
@@ -176,6 +188,21 @@ export default function AlbumCard({ album, listId, editable = false, sortable = 
             />
             {ratingMutation.isPending && (
               <span className="text-[10px] text-zinc-600">Saving…</span>
+            )}
+            {editable ? (
+              <ListenedToggle
+                className="ml-auto"
+                listened={isListened}
+                disabled={listenedMutation.isPending}
+                stopPropagation
+                onChange={(next) => listenedMutation.mutate(next)}
+              />
+            ) : (
+              isListened && (
+                <span className="text-[10px] font-medium text-emerald-500/90 ml-auto uppercase tracking-wide">
+                  Listened
+                </span>
+              )
             )}
           </div>
 

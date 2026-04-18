@@ -110,6 +110,45 @@ router.put('/note', requireUser, async (req: Request, res: Response) => {
   }
 });
 
+// PUT /api/albums/listened - Mark album as listened or not (list owner only)
+router.put('/listened', requireUser, async (req: Request, res: Response) => {
+  const { list_id, album_id, listened } = req.body;
+
+  if (!list_id || !album_id || typeof listened !== 'boolean') {
+    return res.status(400).json({ error: 'list_id, album_id, and listened (boolean) are required' });
+  }
+
+  try {
+    const listResult = await query(
+      'SELECT id FROM lists WHERE id = $1 AND user_id = $2',
+      [list_id, req.userId]
+    );
+
+    if (listResult.rows.length === 0) {
+      return res.status(404).json({ error: 'List not found' });
+    }
+
+    const listenedAt = listened ? new Date().toISOString() : null;
+
+    const result = await query(
+      `UPDATE list_albums
+       SET listened_at = $1
+       WHERE list_id = $2 AND album_id = $3
+       RETURNING *`,
+      [listenedAt, list_id, album_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Album not found in list' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating listened:', err);
+    res.status(500).json({ error: 'Failed to update listened state' });
+  }
+});
+
 // PUT /api/albums/rating - Star rating 0–5 (0 = unrated)
 router.put('/rating', requireUser, async (req: Request, res: Response) => {
   const { list_id, album_id, rating } = req.body;

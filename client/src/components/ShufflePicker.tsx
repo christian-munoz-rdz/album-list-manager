@@ -82,7 +82,9 @@ export default function ShufflePicker({ albums, open, onClose, onComplete }: Shu
           {phase === 'done' ? 'Your pick' : 'Shuffling…'}
         </h2>
         <p className="text-center text-zinc-500 text-sm mb-6">
-          {phase === 'spinning' ? 'Hang tight — choosing an album from your list.' : 'Ready when you are.'}
+          {phase === 'spinning'
+            ? 'Hang tight — choosing from albums you have not marked as listened yet.'
+            : 'Ready when you are.'}
         </p>
 
         {/* Carousel strip */}
