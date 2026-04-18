@@ -1,10 +1,10 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { removeAlbum, updateNote, refreshAlbumCover, updateRating } from '../api/client';
 import type { ListAlbum } from '../types';
-import AlbumDetailModal from './AlbumDetailModal';
 import StarRating from './StarRating';
 
 interface AlbumCardProps {
@@ -15,8 +15,8 @@ interface AlbumCardProps {
 }
 
 export default function AlbumCard({ album, listId, editable = false, sortable = false }: AlbumCardProps) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [showDetail, setShowDetail] = useState(false);
   const [showNoteEditor, setShowNoteEditor] = useState(false);
   const [note, setNote] = useState(album.user_note ?? '');
 
@@ -88,7 +88,7 @@ export default function AlbumCard({ album, listId, editable = false, sortable = 
         {/* Album Art */}
         <div
           className="relative aspect-square cursor-pointer overflow-hidden"
-          onClick={() => setShowDetail(true)}
+          onClick={() => navigate(`/lists/${listId}/albums/${album.album_id}`)}
         >
           {imageUrl ? (
             <img
@@ -156,7 +156,7 @@ export default function AlbumCard({ album, listId, editable = false, sortable = 
           {/* Title / artist */}
           <button
             className="text-left"
-            onClick={() => setShowDetail(true)}
+            onClick={() => navigate(`/lists/${listId}/albums/${album.album_id}`)}
           >
             <p className="text-white font-semibold text-sm leading-snug line-clamp-2 hover:text-spotify-green transition-colors">
               {album.album_name}
@@ -244,16 +244,6 @@ export default function AlbumCard({ album, listId, editable = false, sortable = 
           )}
         </div>
       </div>
-
-      {/* Detail Modal */}
-      {showDetail && (
-        <AlbumDetailModal
-          album={album}
-          listId={listId}
-          editable={editable}
-          onClose={() => setShowDetail(false)}
-        />
-      )}
     </>
   );
 }

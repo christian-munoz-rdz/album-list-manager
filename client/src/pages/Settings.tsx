@@ -57,11 +57,12 @@ export default function Settings() {
       <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 mb-8">
         <h2 className="text-lg font-semibold text-white mb-2">Chrome extension</h2>
         <p className="text-zinc-400 text-sm mb-4 leading-relaxed">
-          Install the extension, open its options page, and set your app API base URL (e.g.{' '}
-          <code className="text-zinc-300 bg-zinc-800 px-1 rounded">http://localhost:3001/api</code> for local
-          dev), paste an API token below, and your target list ID from a list URL (
+          Install the extension, open its options page, and use <strong>Connect account</strong> while you are
+          signed into this site (use the same host as your API URL, e.g.{' '}
+          <code className="text-zinc-300 bg-zinc-800 px-1 rounded">http://localhost:3000/api</code>
+          ), or paste an API token below. Set your target list ID from a list URL (
           <code className="text-zinc-300 bg-zinc-800 px-1 rounded">/lists/&lt;uuid&gt;</code>
-          ). Grant host access when the browser prompts you.
+          ). Grant host access when the browser prompts the extension.
         </p>
 
         {revealedToken && (

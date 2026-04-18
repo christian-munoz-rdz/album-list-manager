@@ -90,3 +90,20 @@ export interface ApiTokenCreated {
   label: string | null;
   created_at: string;
 }
+
+/** Live Last.fm album.getinfo fields for the album page (wiki + tracklist). */
+export interface LastFmAlbumPage {
+  wiki_summary: string | null;
+  wiki_content: string | null;
+  tracks: Array<{
+    name: string;
+    duration_sec: number | null;
+    url: string | null;
+    rank: number | null;
+  }>;
+  tags: Array<{ name: string; url: string }>;
+  listeners: number | null;
+  playcount: number | null;
+  image_url: string | null;
+  lastfm_url: string | null;
+}

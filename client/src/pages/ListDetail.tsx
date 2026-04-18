@@ -18,9 +18,10 @@ import {
 import { getList, updateList, deleteList, reorderAlbums } from '../api/client';
 import AlbumCard from '../components/AlbumCard';
 import ImportModal from '../components/ImportModal';
-import AlbumDetailModal from '../components/AlbumDetailModal';
+import ListSearchModal from '../components/ListSearchModal';
 import ShufflePicker from '../components/ShufflePicker';
 import type { ListAlbum } from '../types';
+import { downloadListAsCsv, downloadListAsJson } from '../utils/exportList';
 
 type ReorderVariables = { albumIds: string[]; previousAlbums: ListAlbum[] };
 
@@ -36,8 +37,8 @@ export default function ListDetail() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [localAlbums, setLocalAlbums] = useState<ListAlbum[] | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
   const [shuffleOpen, setShuffleOpen] = useState(false);
-  const [shuffleDetailAlbum, setShuffleDetailAlbum] = useState<ListAlbum | null>(null);
   const [reorderError, setReorderError] = useState<string | null>(null);
 
   const { data: list, isLoading, isError } = useQuery({
@@ -263,6 +264,22 @@ export default function ListDetail() {
                 </button>
               )}
 
+              {/* Add from search */}
+              <button
+                type="button"
+                onClick={() => setShowSearchModal(true)}
+                className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors"
+              >
+                <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+                  <path
+                    fillRule="evenodd"
+                    d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Add albums
+              </button>
+
               {/* Import */}
               <button
                 onClick={() => setShowImportModal(true)}
@@ -272,6 +289,38 @@ export default function ListDetail() {
                   <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                 </svg>
                 Import
+              </button>
+
+              <button
+                type="button"
+                onClick={() => downloadListAsJson(list, albums)}
+                className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors"
+                title="Download list and albums as JSON"
+              >
+                <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+                  <path
+                    fillRule="evenodd"
+                    d="M10 2.75a.75.75 0 01.75.75v8.69l2.22-2.22a.75.75 0 111.06 1.06l-3.5 3.5a.75.75 0 01-1.06 0l-3.5-3.5a.75.75 0 111.06-1.06l2.22 2.22V3.5a.75.75 0 01.75-.75zM3.75 16a.75.75 0 000 1.5h12.5a.75.75 0 000-1.5H3.75z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Export JSON
+              </button>
+
+              <button
+                type="button"
+                onClick={() => downloadListAsCsv(list, albums)}
+                className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors"
+                title="Download list as CSV"
+              >
+                <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+                  <path
+                    fillRule="evenodd"
+                    d="M10 2.75a.75.75 0 01.75.75v8.69l2.22-2.22a.75.75 0 111.06 1.06l-3.5 3.5a.75.75 0 01-1.06 0l-3.5-3.5a.75.75 0 111.06-1.06l2.22 2.22V3.5a.75.75 0 01.75-.75zM3.75 16a.75.75 0 000 1.5h12.5a.75.75 0 000-1.5H3.75z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Export CSV
               </button>
 
               {/* Delete */}
@@ -338,7 +387,7 @@ export default function ListDetail() {
         <div className="text-center py-20 border border-dashed border-zinc-800 rounded-2xl">
           <div className="text-4xl mb-3">💿</div>
           <p className="text-zinc-400 font-medium">No albums yet</p>
-          <p className="text-zinc-600 text-sm mt-1">Import albums from charts or file import.</p>
+          <p className="text-zinc-600 text-sm mt-1">Use Add albums to search Last.fm, or import a file.</p>
         </div>
       )}
 
@@ -359,6 +408,17 @@ export default function ListDetail() {
         </svg>
       </button>
 
+      {showSearchModal && (
+        <ListSearchModal
+          listId={id!}
+          listTitle={list.title}
+          onClose={() => {
+            setShowSearchModal(false);
+            queryClient.invalidateQueries({ queryKey: ['list', id] });
+          }}
+        />
+      )}
+
       {showImportModal && (
         <ImportModal
           defaultListId={id}
@@ -375,18 +435,9 @@ export default function ListDetail() {
         onClose={() => setShuffleOpen(false)}
         onComplete={(a) => {
           setShuffleOpen(false);
-          setShuffleDetailAlbum(a);
+          navigate(`/lists/${id}/albums/${a.album_id}`);
         }}
       />
-
-      {shuffleDetailAlbum && (
-        <AlbumDetailModal
-          album={shuffleDetailAlbum}
-          listId={id!}
-          editable
-          onClose={() => setShuffleDetailAlbum(null)}
-        />
-      )}
     </div>
   );
 }

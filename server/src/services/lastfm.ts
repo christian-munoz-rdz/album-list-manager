@@ -113,18 +113,39 @@ export interface LastFmTag {
   url: string;
 }
 
+export interface LastFmAlbumTrackRow {
+  name: string;
+  durationSec: number | null;
+  url: string | null;
+  rank: number | null;
+}
+
 export interface LastFmAlbum {
   tags: LastFmTag[];
   listeners: number;
   playcount: number;
   imageUrl: string | null;
   url: string | null;
+  /** Short HTML blurb (links to Last.fm wiki). */
+  wikiSummary: string | null;
+  /** Full HTML article when present. */
+  wikiContent: string | null;
+  /** Tracklisting as on Last.fm. */
+  tracks: LastFmAlbumTrackRow[];
 }
 
 /** Last.fm often returns a single object instead of a one-element array. */
 function asArray<T>(x: T | T[] | undefined | null): T[] {
   if (x == null) return [];
   return Array.isArray(x) ? x : [x];
+}
+
+interface LastFmApiTrack {
+  name?: string;
+  url?: string;
+  duration?: string;
+  length?: string;
+  '@attr'?: { rank?: string };
 }
 
 interface LastFmApiAlbum {
@@ -135,6 +156,14 @@ interface LastFmApiAlbum {
   playcount?: string;
   image?: Array<{ '#text': string; size: string }> | { '#text': string; size: string };
   url?: string;
+  wiki?: {
+    summary?: string;
+    content?: string;
+    published?: string;
+  };
+  tracks?: {
+    track?: LastFmApiTrack | LastFmApiTrack[];
+  };
 }
 
 interface LastFmApiResponse {
@@ -166,12 +195,42 @@ function parseLastFmAlbumPayload(data: LastFmApiResponse): LastFmAlbum | null {
     }
   }
 
+  const wiki = albumData.wiki;
+  const summaryRaw = wiki?.summary?.trim() ?? '';
+  const contentRaw = wiki?.content?.trim() ?? '';
+  const wikiSummary = summaryRaw.length > 0 ? summaryRaw : null;
+  const wikiContent = contentRaw.length > 0 ? contentRaw : null;
+
+  const trackRows: LastFmAlbumTrackRow[] = asArray(albumData.tracks?.track)
+    .map((t, index) => {
+      const durRaw = t.duration ?? t.length;
+      const sec =
+        durRaw != null && String(durRaw).trim() !== ''
+          ? parseInt(String(durRaw), 10)
+          : NaN;
+      const rankRaw = t['@attr']?.rank;
+      const rank =
+        rankRaw != null && String(rankRaw).trim() !== ''
+          ? parseInt(String(rankRaw), 10)
+          : index + 1;
+      return {
+        name: (t.name ?? '').trim(),
+        durationSec: Number.isFinite(sec) ? sec : null,
+        url: t.url?.trim() ? t.url : null,
+        rank: Number.isFinite(rank) ? rank : index + 1,
+      };
+    })
+    .filter((t) => t.name.length > 0);
+
   return {
     tags,
     listeners: parseInt(albumData.listeners ?? '0', 10) || 0,
     playcount: parseInt(albumData.playcount ?? '0', 10) || 0,
     imageUrl,
     url: albumData.url ?? null,
+    wikiSummary,
+    wikiContent,
+    tracks: trackRows,
   };
 }
 

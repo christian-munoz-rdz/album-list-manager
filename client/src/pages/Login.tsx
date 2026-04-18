@@ -13,12 +13,22 @@ export default function Login() {
   const params = new URLSearchParams(location.search);
   const oauthError = params.get('error');
 
+  const redirectAfterLogin = () => {
+    const state = location.state as { from?: { pathname: string; search?: string } } | undefined;
+    const path = state?.from ? `${state.from.pathname}${state.from.search ?? ''}` : null;
+    if (path && path.startsWith('/') && !path.startsWith('//')) {
+      navigate(path, { replace: true });
+    } else {
+      navigate('/dashboard', { replace: true });
+    }
+  };
+
   const mutation = useMutation({
     mutationFn: login,
     onSuccess: async (user) => {
       queryClient.setQueryData(['me'], user);
       await queryClient.invalidateQueries({ queryKey: ['me'] });
-      navigate('/dashboard', { replace: true });
+      redirectAfterLogin();
     },
   });
 

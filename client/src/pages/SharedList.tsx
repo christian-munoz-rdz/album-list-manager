@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getSharedList } from '../api/client';
 import AlbumCard from '../components/AlbumCard';
 import { useAuth } from '../contexts/AuthContext';
+import { downloadListAsCsv, downloadListAsJson } from '../utils/exportList';
 
 export default function SharedList() {
   const { slug } = useParams<{ slug: string }>();
@@ -67,6 +68,38 @@ export default function SharedList() {
         <p className="text-zinc-600 text-sm mt-2">
           {albums.length} album{albums.length !== 1 ? 's' : ''}
         </p>
+        <div className="flex flex-wrap gap-2 mt-4">
+          <button
+            type="button"
+            onClick={() => downloadListAsJson(list, albums)}
+            className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors"
+            title="Download list as JSON"
+          >
+            <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+              <path
+                fillRule="evenodd"
+                d="M10 2.75a.75.75 0 01.75.75v8.69l2.22-2.22a.75.75 0 111.06 1.06l-3.5 3.5a.75.75 0 01-1.06 0l-3.5-3.5a.75.75 0 111.06-1.06l2.22 2.22V3.5a.75.75 0 01.75-.75zM3.75 16a.75.75 0 000 1.5h12.5a.75.75 0 000-1.5H3.75z"
+                clipRule="evenodd"
+              />
+            </svg>
+            Export JSON
+          </button>
+          <button
+            type="button"
+            onClick={() => downloadListAsCsv(list, albums)}
+            className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-full transition-colors"
+            title="Download list as CSV"
+          >
+            <svg viewBox="0 0 20 20" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+              <path
+                fillRule="evenodd"
+                d="M10 2.75a.75.75 0 01.75.75v8.69l2.22-2.22a.75.75 0 111.06 1.06l-3.5 3.5a.75.75 0 01-1.06 0l-3.5-3.5a.75.75 0 111.06-1.06l2.22 2.22V3.5a.75.75 0 01.75-.75zM3.75 16a.75.75 0 000 1.5h12.5a.75.75 0 000-1.5H3.75z"
+                clipRule="evenodd"
+              />
+            </svg>
+            Export CSV
+          </button>
+        </div>
       </div>
 
       {albums.length > 0 ? (

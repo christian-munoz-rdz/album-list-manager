@@ -241,6 +241,57 @@ router.post('/refresh-cover', requireUser, async (req: Request, res: Response) =
   }
 });
 
+// GET /api/albums/:album_id/lastfm — Live Last.fm album page data (wiki, tracklist, stats).
+router.get('/:album_id/lastfm', requireUser, async (req: Request, res: Response) => {
+  const { album_id } = req.params;
+
+  try {
+    const cacheResult = await query(
+      'SELECT artist_name, album_name FROM albums_cache WHERE album_id = $1',
+      [album_id]
+    );
+
+    if (cacheResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Album not found' });
+    }
+
+    const row = cacheResult.rows[0] as { artist_name: string; album_name: string };
+    const lfm = await getAlbumInfoBestEffort(row.artist_name, row.album_name);
+
+    if (!lfm) {
+      return res.json({
+        wiki_summary: null,
+        wiki_content: null,
+        tracks: [],
+        tags: [],
+        listeners: null,
+        playcount: null,
+        image_url: null,
+        lastfm_url: null,
+      });
+    }
+
+    res.json({
+      wiki_summary: lfm.wikiSummary,
+      wiki_content: lfm.wikiContent,
+      tracks: lfm.tracks.map((t) => ({
+        name: t.name,
+        duration_sec: t.durationSec,
+        url: t.url,
+        rank: t.rank,
+      })),
+      tags: lfm.tags,
+      listeners: lfm.listeners,
+      playcount: lfm.playcount,
+      image_url: lfm.imageUrl,
+      lastfm_url: lfm.url,
+    });
+  } catch (err) {
+    console.error('Error fetching Last.fm album page:', err);
+    res.status(500).json({ error: 'Failed to fetch Last.fm album details' });
+  }
+});
+
 // GET /api/albums/:album_id - Get album details from cache
 router.get('/:album_id', requireUser, async (req: Request, res: Response) => {
   const { album_id } = req.params;

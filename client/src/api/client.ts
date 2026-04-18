@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { User, List, Album, ChartResponse, ApiToken, ApiTokenCreated } from '../types';
+import type { User, List, Album, ChartResponse, ApiToken, ApiTokenCreated, LastFmAlbumPage } from '../types';
 
 export const api = axios.create({ baseURL: '/api', withCredentials: true });
 
@@ -47,6 +47,9 @@ export const refreshAlbumCover = (list_id: string, album_id: string) =>
   api.post<{ album: Album }>('/albums/refresh-cover', { list_id, album_id }).then(r => r.data);
 export const getAlbumDetails = (album_id: string) =>
   api.get<Album>(`/albums/${album_id}`).then(r => r.data);
+
+export const getAlbumLastFmPage = (album_id: string) =>
+  api.get<LastFmAlbumPage>(`/albums/${album_id}/lastfm`).then((r) => r.data);
 
 // Charts
 export const getChartAlbums = (tag: string, limit = 50, page = 1) =>

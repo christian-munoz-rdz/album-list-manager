@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import ListDetail from './pages/ListDetail';
+import AlbumPage from './pages/AlbumPage';
 import SharedList from './pages/SharedList';
 import ChartBrowser from './pages/ChartBrowser';
 import Search from './pages/Search';
@@ -11,6 +12,7 @@ import PageLayout from './components/PageLayout';
 import RequireAuth from './components/RequireAuth';
 import NotFound from './pages/NotFound';
 import Settings from './pages/Settings';
+import ExtensionConnect from './pages/ExtensionConnect';
 
 export default function App() {
   return (
@@ -27,6 +29,8 @@ export default function App() {
             <Route path="search" element={<Search />} />
             <Route path="charts" element={<ChartBrowser />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="extension/connect" element={<ExtensionConnect />} />
+            <Route path="lists/:listId/albums/:albumId" element={<AlbumPage />} />
             <Route path="lists/:id" element={<ListDetail />} />
           </Route>
         </Route>
