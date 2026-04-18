@@ -1,6 +1,6 @@
 export interface User {
   id: string;
-  spotify_id: string;
+  spotify_id: string | null;
   username: string;
   display_name: string | null;
   profile_image: string | null;

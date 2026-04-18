@@ -9,6 +9,7 @@ import authRouter from './routes/auth';
 import listsRouter from './routes/lists';
 import albumsRouter from './routes/albums';
 import chartsRouter from './routes/charts';
+import searchRouter from './routes/search';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -52,6 +53,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/lists', listsRouter);
 app.use('/api/albums', albumsRouter);
 app.use('/api/charts', chartsRouter);
+app.use('/api/search', searchRouter);
 
 // Health check
 app.get('/health', (_req: Request, res: Response) => {

@@ -5,6 +5,16 @@ export const api = axios.create({ baseURL: '/api', withCredentials: true });
 
 // Auth
 export const getMe = () => api.get<User>('/auth/me').then(r => r.data);
+export const register = (data: {
+  username: string;
+  password: string;
+  email?: string;
+  display_name?: string;
+}) => api.post<User>('/auth/register', data).then(r => r.data);
+export const login = (data: { identifier: string; password: string }) =>
+  api.post<User>('/auth/login', data).then(r => r.data);
+export const logout = () => api.post('/auth/logout').then(r => r.data);
+export const spotifyLoginUrl = '/api/auth/spotify';
 
 // Lists
 export const getLists = () => api.get<List[]>('/lists').then(r => r.data);
@@ -33,6 +43,27 @@ export const getAlbumDetails = (album_id: string) =>
 // Charts
 export const getChartAlbums = (tag: string, limit = 50, page = 1) =>
   api.get<ChartResponse>(`/charts?tag=${encodeURIComponent(tag)}&limit=${limit}&page=${page}`)
+    .then(r => r.data);
+
+// Search (Last.fm)
+export interface ArtistHit {
+  name: string;
+  url: string;
+  image_url: string | null;
+  listeners: number;
+  mbid?: string;
+}
+
+export const searchAlbums = (q: string, limit = 30) =>
+  api.get<ChartResponse>(`/search?q=${encodeURIComponent(q)}&type=album&limit=${limit}`)
+    .then(r => r.data);
+
+export const searchArtists = (q: string, limit = 20) =>
+  api.get<{ artists: ArtistHit[] }>(`/search?q=${encodeURIComponent(q)}&type=artist&limit=${limit}`)
+    .then(r => r.data);
+
+export const getArtistTopAlbums = (name: string, page = 1) =>
+  api.get<ChartResponse>(`/search/artist/${encodeURIComponent(name)}/albums?page=${page}`)
     .then(r => r.data);
 
 export const addChartAlbum = (

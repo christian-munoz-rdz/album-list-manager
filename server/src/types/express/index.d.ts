@@ -7,3 +7,10 @@ declare global {
     }
   }
 }
+
+declare module 'express-session' {
+  interface SessionData {
+    userId?: string;
+    spotifyOAuthState?: string;
+  }
+}

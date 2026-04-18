@@ -3,8 +3,12 @@ import Dashboard from './pages/Dashboard';
 import ListDetail from './pages/ListDetail';
 import SharedList from './pages/SharedList';
 import ChartBrowser from './pages/ChartBrowser';
+import Search from './pages/Search';
+import Login from './pages/Login';
+import Register from './pages/Register';
 import Navbar from './components/Navbar';
 import PageLayout from './components/PageLayout';
+import RequireAuth from './components/RequireAuth';
 
 export default function App() {
   return (
@@ -12,11 +16,16 @@ export default function App() {
       <Navbar />
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route element={<PageLayout />}>
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="charts" element={<ChartBrowser />} />
-          <Route path="lists/:id" element={<ListDetail />} />
-          <Route path="shared/:slug" element={<SharedList />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="shared/:slug" element={<SharedList />} />
+        <Route element={<RequireAuth />}>
+          <Route element={<PageLayout />}>
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="search" element={<Search />} />
+            <Route path="charts" element={<ChartBrowser />} />
+            <Route path="lists/:id" element={<ListDetail />} />
+          </Route>
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

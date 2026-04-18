@@ -2,17 +2,48 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  spotify_id VARCHAR(255) UNIQUE NOT NULL,
+  spotify_id VARCHAR(255),
   username VARCHAR(255) NOT NULL,
   display_name VARCHAR(255),
   profile_image TEXT,
   email VARCHAR(255),
+  password_hash TEXT,
   spotify_access_token TEXT,
   spotify_refresh_token TEXT,
   spotify_token_expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Idempotent migrations for pre-existing databases
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE users ALTER COLUMN spotify_id DROP NOT NULL;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'users_spotify_id_key'
+  ) THEN
+    ALTER TABLE users DROP CONSTRAINT users_spotify_id_key;
+  END IF;
+END$$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_spotify_id_key
+  ON users (spotify_id) WHERE spotify_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_key
+  ON users (LOWER(username));
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_key
+  ON users (LOWER(email)) WHERE email IS NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'users_auth_method_chk'
+  ) THEN
+    ALTER TABLE users ADD CONSTRAINT users_auth_method_chk
+      CHECK (password_hash IS NOT NULL OR spotify_id IS NOT NULL);
+  END IF;
+END$$;
 
 CREATE TABLE IF NOT EXISTS lists (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
