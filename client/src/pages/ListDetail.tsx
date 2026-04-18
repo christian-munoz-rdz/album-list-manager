@@ -22,6 +22,8 @@ import AlbumDetailModal from '../components/AlbumDetailModal';
 import ShufflePicker from '../components/ShufflePicker';
 import type { ListAlbum } from '../types';
 
+type ReorderVariables = { albumIds: string[]; previousAlbums: ListAlbum[] };
+
 export default function ListDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -36,6 +38,7 @@ export default function ListDetail() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [shuffleOpen, setShuffleOpen] = useState(false);
   const [shuffleDetailAlbum, setShuffleDetailAlbum] = useState<ListAlbum | null>(null);
+  const [reorderError, setReorderError] = useState<string | null>(null);
 
   const { data: list, isLoading, isError } = useQuery({
     queryKey: ['list', id],
@@ -67,8 +70,14 @@ export default function ListDetail() {
   });
 
   const reorderMutation = useMutation({
-    mutationFn: (albumIds: string[]) => reorderAlbums(id!, albumIds),
+    mutationFn: ({ albumIds }: ReorderVariables) => reorderAlbums(id!, albumIds),
     onSuccess: () => {
+      setReorderError(null);
+      queryClient.invalidateQueries({ queryKey: ['list', id] });
+    },
+    onError: (_err, variables) => {
+      setLocalAlbums(variables.previousAlbums);
+      setReorderError("Couldn't save order. Try again.");
       queryClient.invalidateQueries({ queryKey: ['list', id] });
     },
   });
@@ -107,11 +116,16 @@ export default function ListDetail() {
     const newIndex = albums.findIndex((a) => a.album_id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
 
+    const previousAlbums = [...albums];
     const reordered = [...albums];
     const [moved] = reordered.splice(oldIndex, 1);
     reordered.splice(newIndex, 0, moved);
+    setReorderError(null);
     setLocalAlbums(reordered);
-    reorderMutation.mutate(reordered.map((a) => a.album_id));
+    reorderMutation.mutate({
+      albumIds: reordered.map((a) => a.album_id),
+      previousAlbums,
+    });
   };
 
   if (isLoading) {
@@ -295,6 +309,15 @@ export default function ListDetail() {
       </div>
 
       {/* Album grid */}
+      {reorderError && (
+        <div
+          className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+          role="status"
+          aria-live="polite"
+        >
+          {reorderError}
+        </div>
+      )}
       {albums.length > 0 ? (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={albums.map((a) => a.album_id)} strategy={rectSortingStrategy}>

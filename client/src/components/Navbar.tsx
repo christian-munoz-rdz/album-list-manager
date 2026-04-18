@@ -42,17 +42,12 @@ export default function Navbar() {
 
         <div className="flex-1 flex justify-center min-w-0">
           <LayoutGroup>
-            <div
-              className="inline-flex rounded-full bg-zinc-800/90 p-1 border border-zinc-700/80"
-              role="tablist"
-              aria-label="Main"
-            >
+            <div className="inline-flex rounded-full bg-zinc-800/90 p-1 border border-zinc-700/80">
               {reduceMotion ? (
                 <>
                   <Link
                     to="/dashboard"
-                    role="tab"
-                    aria-selected={isDashboard}
+                    aria-current={isDashboard ? 'page' : undefined}
                     className={`${linkBase} transition-colors ${
                       isDashboard
                         ? 'bg-zinc-600 text-white shadow-sm'
@@ -63,8 +58,7 @@ export default function Navbar() {
                   </Link>
                   <Link
                     to="/search"
-                    role="tab"
-                    aria-selected={isSearch}
+                    aria-current={isSearch ? 'page' : undefined}
                     className={`${linkBase} transition-colors ${
                       isSearch
                         ? 'bg-zinc-600 text-white shadow-sm'
@@ -75,8 +69,7 @@ export default function Navbar() {
                   </Link>
                   <Link
                     to="/charts"
-                    role="tab"
-                    aria-selected={isCharts}
+                    aria-current={isCharts ? 'page' : undefined}
                     className={`${linkBase} transition-colors ${
                       isCharts
                         ? 'bg-zinc-600 text-white shadow-sm'
@@ -90,8 +83,7 @@ export default function Navbar() {
                 <>
                   <Link
                     to="/dashboard"
-                    role="tab"
-                    aria-selected={isDashboard}
+                    aria-current={isDashboard ? 'page' : undefined}
                     className={`${linkBase} ${
                       isDashboard ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'
                     }`}
@@ -108,8 +100,7 @@ export default function Navbar() {
                   </Link>
                   <Link
                     to="/search"
-                    role="tab"
-                    aria-selected={isSearch}
+                    aria-current={isSearch ? 'page' : undefined}
                     className={`${linkBase} ${
                       isSearch ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'
                     }`}
@@ -126,8 +117,7 @@ export default function Navbar() {
                   </Link>
                   <Link
                     to="/charts"
-                    role="tab"
-                    aria-selected={isCharts}
+                    aria-current={isCharts ? 'page' : undefined}
                     className={`${linkBase} ${
                       isCharts ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'
                     }`}

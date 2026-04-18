@@ -2,9 +2,11 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getSharedList } from '../api/client';
 import AlbumCard from '../components/AlbumCard';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function SharedList() {
   const { slug } = useParams<{ slug: string }>();
+  const { user, isLoading: authLoading } = useAuth();
 
   const { data: list, isLoading, isError } = useQuery({
     queryKey: ['sharedList', slug],
@@ -32,9 +34,23 @@ export default function SharedList() {
     return (
       <div className="max-w-6xl mx-auto px-4 py-20 text-center">
         <p className="text-zinc-400 mb-4">This list is not available or is not public.</p>
-        <Link to="/" className="text-spotify-green hover:text-green-400 text-sm transition-colors">
-          Go home
-        </Link>
+        {authLoading ? (
+          <p className="text-zinc-500 text-sm">Loading…</p>
+        ) : user ? (
+          <Link to="/dashboard" className="text-spotify-green hover:text-green-400 text-sm font-medium transition-colors">
+            Back to your lists
+          </Link>
+        ) : (
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 justify-center items-center text-sm">
+            <Link to="/login" className="text-spotify-green hover:text-green-400 font-medium transition-colors">
+              Sign in
+            </Link>
+            <span className="text-zinc-600 hidden sm:inline">·</span>
+            <Link to="/register" className="text-zinc-400 hover:text-white transition-colors">
+              Create an account
+            </Link>
+          </div>
+        )}
       </div>
     );
   }

@@ -511,28 +511,28 @@ export function ChartCard({ album, rank, selected, onToggleSelect, onAddClick, s
 
   return (
     <div
-      role="checkbox"
-      aria-checked={selected}
-      tabIndex={0}
-      aria-label={`${selected ? 'Deselect' : 'Select'} ${album.album_name}`}
-      onClick={() => onToggleSelect(!selected)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onToggleSelect(!selected);
-        }
-      }}
       className={clsx(
-        'relative rounded-2xl overflow-hidden transition-colors duration-150 group flex flex-col outline-none',
-        'focus-visible:ring-2 focus-visible:ring-spotify-green focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950',
+        'relative rounded-2xl overflow-hidden transition-colors duration-150 group flex flex-col',
         selected
           ? 'ring-2 ring-spotify-green bg-zinc-800/50'
-          : 'bg-zinc-900 border border-zinc-800 hover:border-zinc-600 cursor-pointer',
+          : 'bg-zinc-900 border border-zinc-800 hover:border-zinc-600',
       )}
     >
       <div className="absolute top-2 left-2 right-2 z-20 flex items-start justify-between gap-2 pointer-events-none">
         <div className="flex items-center gap-2">
-          <SelectionMark selected={selected} />
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={selected}
+            aria-label={selected ? `Deselect ${album.album_name}` : `Select ${album.album_name}`}
+            onClick={(e) => {
+              stop(e);
+              onToggleSelect(!selected);
+            }}
+            className="pointer-events-auto shrink-0 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spotify-green focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+          >
+            <SelectionMark selected={selected} />
+          </button>
           {showRank && (
             <div className="bg-black/65 text-zinc-200 text-xs font-bold px-2 py-0.5 rounded-full backdrop-blur-sm">
               #{rank}
@@ -545,7 +545,7 @@ export function ChartCard({ album, rank, selected, onToggleSelect, onAddClick, s
             stop(e);
             onAddClick();
           }}
-          className="pointer-events-auto w-8 h-8 rounded-full bg-black/55 hover:bg-spotify-green flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all border border-white/10"
+          className="pointer-events-auto w-8 h-8 rounded-full bg-black/55 hover:bg-spotify-green flex items-center justify-center opacity-100 transition-all border border-white/10 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
           aria-label={`Add ${album.album_name} to list`}
         >
           <svg viewBox="0 0 20 20" className="w-4 h-4 fill-current text-white" aria-hidden="true">

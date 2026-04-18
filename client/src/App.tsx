@@ -9,6 +9,7 @@ import Register from './pages/Register';
 import Navbar from './components/Navbar';
 import PageLayout from './components/PageLayout';
 import RequireAuth from './components/RequireAuth';
+import NotFound from './pages/NotFound';
 
 export default function App() {
   return (
@@ -27,7 +28,7 @@ export default function App() {
             <Route path="lists/:id" element={<ListDetail />} />
           </Route>
         </Route>
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </div>
   );
