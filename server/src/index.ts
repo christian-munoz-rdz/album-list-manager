@@ -10,6 +10,7 @@ import listsRouter from './routes/lists';
 import albumsRouter from './routes/albums';
 import chartsRouter from './routes/charts';
 import searchRouter from './routes/search';
+import tokensRouter from './routes/tokens';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -50,6 +51,7 @@ app.use(
 
 // Routes
 app.use('/api/auth', authRouter);
+app.use('/api/tokens', tokensRouter);
 app.use('/api/lists', listsRouter);
 app.use('/api/albums', albumsRouter);
 app.use('/api/charts', chartsRouter);

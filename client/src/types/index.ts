@@ -74,3 +74,19 @@ export interface ChartResponse {
   page: number;
   limit: number;
 }
+
+/** API token metadata (secret never returned after creation) */
+export interface ApiToken {
+  id: string;
+  label: string | null;
+  created_at: string;
+  last_used_at: string | null;
+}
+
+/** Response from POST /api/tokens — `token` plaintext shown once */
+export interface ApiTokenCreated {
+  id: string;
+  token: string;
+  label: string | null;
+  created_at: string;
+}

@@ -26,6 +26,7 @@ export default function Navbar() {
   const isDashboard = pathname === '/dashboard' || pathname.startsWith('/lists/');
   const isSearch = pathname === '/search';
   const isCharts = pathname === '/charts';
+  const isSettings = pathname === '/settings';
 
   const linkBase =
     'relative z-0 px-4 py-1.5 rounded-full text-sm font-medium inline-flex items-center justify-center';
@@ -77,6 +78,17 @@ export default function Navbar() {
                     }`}
                   >
                     Charts
+                  </Link>
+                  <Link
+                    to="/settings"
+                    aria-current={isSettings ? 'page' : undefined}
+                    className={`${linkBase} transition-colors ${
+                      isSettings
+                        ? 'bg-zinc-600 text-white shadow-sm'
+                        : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    Settings
                   </Link>
                 </>
               ) : (
@@ -131,6 +143,23 @@ export default function Navbar() {
                       />
                     )}
                     <span className="relative z-[1]">Charts</span>
+                  </Link>
+                  <Link
+                    to="/settings"
+                    aria-current={isSettings ? 'page' : undefined}
+                    className={`${linkBase} ${
+                      isSettings ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    {isSettings && (
+                      <motion.span
+                        layoutId="nav-main-tab"
+                        className="absolute inset-0 rounded-full bg-zinc-600 shadow-sm"
+                        transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+                        style={{ zIndex: 0 }}
+                      />
+                    )}
+                    <span className="relative z-[1]">Settings</span>
                   </Link>
                 </>
               )}

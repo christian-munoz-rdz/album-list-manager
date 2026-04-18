@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { User, List, Album, ChartResponse } from '../types';
+import type { User, List, Album, ChartResponse, ApiToken, ApiTokenCreated } from '../types';
 
 export const api = axios.create({ baseURL: '/api', withCredentials: true });
 
@@ -15,6 +15,14 @@ export const login = (data: { identifier: string; password: string }) =>
   api.post<User>('/auth/login', data).then(r => r.data);
 export const logout = () => api.post('/auth/logout').then(r => r.data);
 export const spotifyLoginUrl = '/api/auth/spotify';
+
+// API tokens (Chrome extension)
+export const createApiToken = (data?: { label?: string }) =>
+  api.post<ApiTokenCreated>('/tokens', data ?? {}).then((r) => r.data);
+
+export const getApiTokens = () => api.get<ApiToken[]>('/tokens').then((r) => r.data);
+
+export const deleteApiToken = (id: string) => api.delete<{ ok: boolean }>(`/tokens/${id}`).then((r) => r.data);
 
 // Lists
 export const getLists = () => api.get<List[]>('/lists').then(r => r.data);

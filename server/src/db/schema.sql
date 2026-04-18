@@ -99,3 +99,16 @@ CREATE TABLE IF NOT EXISTS session (
 );
 
 CREATE INDEX IF NOT EXISTS idx_session_expire ON session(expire);
+
+-- API tokens (Chrome extension, etc.): Bearer auth; lookup_hash = SHA-256(hex) of raw token for O(1) lookup
+CREATE TABLE IF NOT EXISTS api_tokens (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  lookup_hash VARCHAR(64) NOT NULL UNIQUE,
+  token_hash TEXT NOT NULL,
+  label VARCHAR(255),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_api_tokens_user_id ON api_tokens(user_id);

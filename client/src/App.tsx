@@ -10,6 +10,7 @@ import Navbar from './components/Navbar';
 import PageLayout from './components/PageLayout';
 import RequireAuth from './components/RequireAuth';
 import NotFound from './pages/NotFound';
+import Settings from './pages/Settings';
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="search" element={<Search />} />
             <Route path="charts" element={<ChartBrowser />} />
+            <Route path="settings" element={<Settings />} />
             <Route path="lists/:id" element={<ListDetail />} />
           </Route>
         </Route>
