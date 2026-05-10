@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+
+.git
+.gitignore
+.dockerignore
+
+npm-debug.log*
+Dockerfile
+docker-compose*.yml
+
+DEPLOY-AWS.md
+album-list-manager.code-workspace
